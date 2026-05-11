@@ -47,6 +47,13 @@ const app = {
       this.updateWeaknessCard();
     });
 
+    window.electronAPI.onSessionComplete((stats) => {
+      this.sessionStats = stats;
+      this.showSessionComplete(stats);
+      this.refreshDashboard();
+      this.navigate("live");
+    });
+
     // Interval to update session timer
     this.sessionTimer = setInterval(() => this.tickSessionTimer(), 1000);
 
@@ -656,6 +663,66 @@ const app = {
   async forceAnalyze() {
     await window.electronAPI.forceAnalyze();
     this.navigate("live");
+  },
+
+  // ── Session complete ──────────────────────────────────────────────────────
+  showSessionComplete(stats) {
+    const feed = document.getElementById("live-feed");
+
+    const avgSkills = stats?.skillAverages || {};
+    const skillHtml = Object.entries(avgSkills).length > 0
+      ? Object.entries(avgSkills).map(([k, v]) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="width:90px;font-size:11px;font-weight:600;color:var(--muted);text-transform:capitalize">${k.replace(/_/g," ")}</div>
+            <div style="flex:1;height:5px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${(v / 10) * 100}%;background:linear-gradient(90deg,var(--blue2),var(--blue));border-radius:3px;transition:width 0.8s"></div>
+            </div>
+            <div style="font-size:11px;font-weight:700;width:24px;text-align:right;color:var(--blue)">${v}</div>
+          </div>
+        `).join("")
+      : `<div style="font-size:12px;color:var(--muted)">No skill data recorded.</div>`;
+
+    const banner = document.createElement("div");
+    banner.innerHTML = `
+      <div style="border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.06);border-radius:16px;padding:22px;margin-bottom:16px;animation:slideUp 0.4s ease-out">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <div style="font-size:32px">🎯</div>
+          <div style="flex:1">
+            <div style="font-size:15px;font-weight:800;color:#86efac;margin-bottom:3px">5-Minute Analysis Complete</div>
+            <div style="font-size:12px;color:var(--muted)">ReplayIQ has finished analyzing this replay session</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+          <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:22px;font-weight:800">${stats?.analyses || 0}</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-top:2px">Frames</div>
+          </div>
+          <div style="background:rgba(239,68,68,0.08);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:22px;font-weight:800;color:var(--red)">${stats?.mistakes || 0}</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-top:2px">Mistakes</div>
+          </div>
+          <div style="background:rgba(34,197,94,0.08);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:22px;font-weight:800;color:var(--green)">${stats?.positives || 0}</div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-top:2px">Good Plays</div>
+          </div>
+        </div>
+
+        ${Object.keys(avgSkills).length > 0 ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:10px">Skill Breakdown</div>
+          ${skillHtml}
+        </div>` : ""}
+
+        <div style="display:flex;gap:10px">
+          <button onclick="app.forceAnalyze()" class="btn btn-primary" style="flex:1;justify-content:center">⚡ Analyze Another Replay</button>
+          <button onclick="app.navigate('chat')" class="btn btn-secondary" style="flex:1;justify-content:center">💬 Ask Your Coach</button>
+        </div>
+      </div>
+    `;
+    feed.prepend(banner);
+    this.sessionStart = null;
+    document.getElementById("session-strip").style.display = "none";
   },
 
   // ── Helpers ───────────────────────────────────────────────────────────────

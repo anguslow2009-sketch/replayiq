@@ -92,6 +92,8 @@ type AppStatus =
 
 let currentStatus: AppStatus = "fortnite_not_running";
 let currentSession: Session | null = null;
+let replayAnalysisCount = 0;
+const MAX_ANALYSES_PER_REPLAY = 10; // 10 × 30s = 5 minutes
 
 function newSession(): Session {
   return {
@@ -217,6 +219,7 @@ async function startDetectionLoop() {
     if (looksLikeReplay && currentStatus !== "replay_detected" && currentStatus !== "analyzing") {
       if (!currentSession) {
         currentSession = newSession();
+        replayAnalysisCount = 0;
       }
       setStatus("replay_detected");
       startCaptureLoop();
@@ -291,8 +294,19 @@ async function runCapture() {
         is_replay: true,
       };
       currentSession.analyses.push(entry);
+      replayAnalysisCount++;
       if (currentSession.analyses.length % 3 === 0) saveSession(currentSession);
       overlayWindow?.webContents.send("session-update", buildSessionStats());
+
+      // 5-minute threshold reached — stop and show summary
+      if (replayAnalysisCount >= MAX_ANALYSES_PER_REPLAY) {
+        stopCaptureLoop();
+        endSession();
+        setStatus("fortnite_running");
+        overlayWindow?.webContents.send("session-complete", buildSessionStats());
+        replayAnalysisCount = 0;
+        return;
+      }
     }
 
     if (result.rateLimited) {
@@ -374,6 +388,7 @@ ipcMain.handle("get-current-session", () => ({
 
 ipcMain.handle("force-analyze", async () => {
   if (!currentSession) currentSession = newSession();
+  replayAnalysisCount = 0;
   setStatus("replay_detected");
   startCaptureLoop();
   return true;

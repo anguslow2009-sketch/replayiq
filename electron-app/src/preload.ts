@@ -37,4 +37,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("session-update", (_e, stats) => cb(stats));
     return () => ipcRenderer.removeAllListeners("session-update");
   },
+  onSessionComplete: (cb: (stats: unknown) => void) => {
+    ipcRenderer.on("session-complete", (_e, stats) => cb(stats));
+    return () => ipcRenderer.removeAllListeners("session-complete");
+  },
 });
