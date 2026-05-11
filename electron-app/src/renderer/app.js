@@ -1,44 +1,34 @@
 // ReplayIQ Desktop — Renderer process
-// Communicates with main process via window.electronAPI (contextBridge)
 
 const STATUS_CONFIG = {
-  no_token:            { dot: "dot-gray",   text: "Not connected — paste your token below" },
-  fortnite_not_running:{ dot: "dot-red",    text: "Fortnite not detected" },
-  fortnite_running:    { dot: "dot-yellow", text: "Fortnite running — open a replay to start" },
-  replay_detected:     { dot: "dot-green pulse", text: "Replay detected — coaching active" },
-  analyzing:           { dot: "dot-blue",   text: "Analyzing gameplay…" },
-  error:               { dot: "dot-red",    text: "Error — check connection" },
+  fortnite_not_running: { dot: "dot-red",    text: "Fortnite not detected" },
+  fortnite_running:     { dot: "dot-yellow", text: "Fortnite running — open a replay to start" },
+  replay_detected:      { dot: "dot-green pulse", text: "Replay detected — coaching active" },
+  analyzing:            { dot: "dot-blue",   text: "Analyzing gameplay…" },
+  error:                { dot: "dot-red",    text: "Error — check connection" },
 };
 
 const app = {
-  // ── Init ──────────────────────────────────────────────────────────────────
   async init() {
-    const { status, hasToken } = await window.electronAPI.getStatus();
-    this.applyStatus(status, hasToken);
+    const { status } = await window.electronAPI.getStatus();
+    this.applyStatus(status);
 
-    // Listen for status changes from main process
     window.electronAPI.onStatusChange((payload) => {
-      this.applyStatus(payload.status, payload.authenticated ?? null);
+      this.applyStatus(payload.status);
     });
 
-    // Listen for coaching results
     window.electronAPI.onCoachingResult((result) => {
       this.handleCoachingResult(result);
     });
   },
 
-  // ── Status ────────────────────────────────────────────────────────────────
-  applyStatus(status, hasToken) {
+  applyStatus(status) {
     const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.error;
 
-    // Update dot
     const dot = document.getElementById("status-dot");
     dot.className = "status-dot " + cfg.dot;
-
-    // Update text
     document.getElementById("status-text").textContent = cfg.text;
 
-    // Show/hide manual capture button
     const captureBtn = document.getElementById("manual-capture-btn");
     if (status === "replay_detected") {
       captureBtn.classList.add("visible");
@@ -46,25 +36,7 @@ const app = {
       captureBtn.classList.remove("visible");
     }
 
-    // Show auth or feed
-    const authScreen = document.getElementById("auth-screen");
     const feed = document.getElementById("feed");
-    const signOutBtn = document.getElementById("sign-out-btn");
-
-    if (status === "no_token" || hasToken === false) {
-      authScreen.style.display = "flex";
-      feed.style.display = "none";
-      signOutBtn.style.display = "none";
-    } else {
-      authScreen.style.display = "none";
-      feed.style.display = "block";
-      signOutBtn.style.display = "block";
-
-      // Show idle message if feed is empty
-      if (!feed.querySelector(".coaching-card, .analyzing-card")) {
-        this.showIdleMessage(status);
-      }
-    }
 
     // Show/hide analyzing spinner
     const existing = feed.querySelector(".analyzing-card");
@@ -79,12 +51,17 @@ const app = {
     } else if (status !== "analyzing" && existing) {
       existing.remove();
     }
+
+    // Show idle message if feed is empty
+    if (!feed.querySelector(".coaching-card, .analyzing-card")) {
+      this.showIdleMessage(status);
+    }
   },
 
   showIdleMessage(status) {
     const feed = document.getElementById("feed");
     const existing = feed.querySelector(".idle-box");
-    if (existing) return;
+    if (existing) existing.remove();
 
     const icons = {
       fortnite_not_running: "🎮",
@@ -111,32 +88,24 @@ const app = {
     feed.appendChild(box);
   },
 
-  // ── Coaching results ──────────────────────────────────────────────────────
   handleCoachingResult(result) {
     const feed = document.getElementById("feed");
-
-    // Remove idle boxes
     feed.querySelectorAll(".idle-box").forEach((el) => el.remove());
 
     if (result.type === "rate_limited") {
       this.addRateLimitCard(result.message);
       return;
     }
-
     if (result.type === "error") {
       this.addErrorCard(result.message);
       return;
     }
-
     if (result.type === "coaching" && result.data) {
       this.addCoachingCard(result.data);
     }
 
-    // Keep only the 5 most recent cards
     const cards = feed.querySelectorAll(".coaching-card, .rate-limit-card");
-    if (cards.length > 5) {
-      cards[cards.length - 1].remove();
-    }
+    if (cards.length > 5) cards[cards.length - 1].remove();
   },
 
   addCoachingCard(data) {
@@ -180,7 +149,6 @@ const app = {
         ${positivesHtml}
       </div>
     `;
-
     feed.prepend(card);
   },
 
@@ -188,12 +156,7 @@ const app = {
     const feed = document.getElementById("feed");
     const card = document.createElement("div");
     card.className = "rate-limit-card";
-    card.innerHTML = `
-      <p>⏱ ${escHtml(message || "Daily coaching limit reached. Resets at midnight.")}</p>
-      <button class="btn-primary" onclick="window.electronAPI.openWebsite('/pricing')" style="margin:0 auto;display:block">
-        Upgrade to Pro
-      </button>
-    `;
+    card.innerHTML = `<p>⏱ ${escHtml(message || "Please wait 30 seconds between analyses.")}</p>`;
     feed.prepend(card);
   },
 
@@ -211,24 +174,6 @@ const app = {
     setTimeout(() => card.remove(), 8000);
   },
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  async submitToken() {
-    const input = document.getElementById("token-input");
-    const token = input.value.trim();
-    if (!token) return;
-
-    const ok = await window.electronAPI.setToken(token);
-    if (ok) {
-      input.value = "";
-    }
-  },
-
-  async signOut() {
-    await window.electronAPI.signOut();
-    document.getElementById("feed").innerHTML = "";
-  },
-
-  // ── Manual capture ────────────────────────────────────────────────────────
   async manualCapture() {
     const btn = document.getElementById("manual-capture-btn");
     btn.textContent = "Analyzing…";
@@ -239,7 +184,6 @@ const app = {
   },
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -248,10 +192,4 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-// Allow pressing Enter in token input
-document.getElementById("token-input")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") app.submitToken();
-});
-
-// Boot
 app.init();

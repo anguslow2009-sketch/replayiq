@@ -3,7 +3,6 @@ import * as http from "http";
 
 interface AnalyzeFrameOptions {
   imageBase64: string;
-  token: string;
   apiBase: string;
 }
 
@@ -41,7 +40,6 @@ export async function analyzeFrame(
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
-          Authorization: `Bearer ${opts.token}`,
         },
       },
       (res) => {

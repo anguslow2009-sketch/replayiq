@@ -138,63 +138,6 @@
     #content::-webkit-scrollbar-track { background: transparent; }
     #content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
-    /* ── Auth screen ── */
-    #auth-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      height: 100%;
-      gap: 16px;
-      padding: 20px;
-    }
-
-    .auth-logo {
-      width: 56px; height: 56px;
-      background: linear-gradient(135deg, #3b82f6, #7c3aed);
-      border-radius: 16px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
-      box-shadow: 0 8px 32px rgba(59,130,246,0.3);
-    }
-
-    #auth-screen h2 { font-size: 18px; font-weight: 700; }
-    #auth-screen p { color: var(--muted); line-height: 1.5; font-size: 12px; }
-
-    .token-input-wrap {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .token-input-wrap label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      text-align: left;
-    }
-
-    .token-input-row { display: flex; gap: 8px; }
-
-    #token-input {
-      flex: 1;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      padding: 8px 10px;
-      font-size: 12px;
-      font-family: 'Courier New', monospace;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    #token-input:focus { border-color: rgba(59,130,246,0.5); }
-    #token-input::placeholder { color: var(--muted); }
-
     .btn-primary {
       background: linear-gradient(135deg, #2563eb, #3b82f6);
       color: white;
@@ -392,8 +335,6 @@
       background: rgba(255,255,255,0.01);
     }
 
-    #sign-out-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11px; }
-    #sign-out-btn:hover { color: var(--red); }
   </style>
 </head>
 <body>
@@ -418,33 +359,12 @@
 
   <!-- Main content -->
   <div id="content">
-    <!-- Auth screen (shown when no token) -->
-    <div id="auth-screen" style="display:none">
-      <div class="auth-logo">⚡</div>
-      <h2>Connect your account</h2>
-      <p>Sign in to ReplayIQ on the website, go to your account page, and paste your desktop token below.</p>
-
-      <div class="token-input-wrap">
-        <label>Desktop Token</label>
-        <div class="token-input-row">
-          <input id="token-input" type="password" placeholder="riq_xxxxxxxxxxxxxxxx" autocomplete="off" />
-          <button class="btn-primary" onclick="app.submitToken()">Connect</button>
-        </div>
-      </div>
-
-      <button class="btn-ghost" onclick="window.electronAPI.openWebsite('/account')">
-        Get my token from the website →
-      </button>
-    </div>
-
-    <!-- Main feed (shown when connected) -->
-    <div id="feed" style="display:none"></div>
+    <div id="feed"></div>
   </div>
 
   <!-- Footer -->
   <div id="footer">
     <span id="footer-info">ReplayIQ Desktop</span>
-    <button id="sign-out-btn" onclick="app.signOut()" style="display:none">Sign out</button>
   </div>
 
   <script src="app.js"></script>

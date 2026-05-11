@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { db } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { isProUser } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -11,6 +8,18 @@ let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   return _client;
+}
+
+// Simple in-memory rate limit: 1 analysis per 30 seconds per IP
+const lastCallByIp = new Map<string, number>();
+const COOLDOWN_MS = 30_000;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const last = lastCallByIp.get(ip) ?? 0;
+  if (now - last < COOLDOWN_MS) return false;
+  lastCallByIp.set(ip, now);
+  return true;
 }
 
 const VISION_SYSTEM_PROMPT = `You are an elite Fortnite competitive coach watching a player's replay in real-time. You are analyzing a screenshot taken from within the Fortnite replay viewer.
@@ -45,41 +54,18 @@ If this frame does not show gameplay (loading screen, menus, non-replay content)
 {"observation":"Non-gameplay frame","mistakes":[],"positives":[],"timestamp":"<ISO string>"}`;
 
 export async function POST(req: NextRequest) {
-  // Authenticate via Bearer token (desktop app)
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "").trim();
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    req.headers.get("x-real-ip") ??
+    "unknown";
 
-  if (!token) {
-    return NextResponse.json({ error: "Missing token" }, { status: 401 });
-  }
-
-  // Look up user by desktop token
-  const user = await db.user.findUnique({
-    where: { desktopToken: token },
-    select: { id: true },
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
-
-  // Rate limit check (30 seconds per analysis call)
-  const ANALYSIS_SECS = 30;
-  const isPro = await isProUser(user.id);
-  const rateLimit = await checkRateLimit(user.id, isPro);
-
-  if (!rateLimit.allowed) {
+  if (!checkIpRateLimit(ip)) {
     return NextResponse.json(
-      {
-        error: "Daily limit reached",
-        message: `You've used your ${Math.floor(rateLimit.limitSecs! / 60)}-minute daily coaching limit. Resets at midnight.`,
-        resetsAt: rateLimit.resetsAt.toISOString(),
-      },
+      { error: "Too soon", message: "Wait 30 seconds between analyses." },
       { status: 429 }
     );
   }
 
-  // Parse body
   let imageBase64: string;
   let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
   try {
@@ -90,18 +76,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
-
-  // Record usage in DB (create a lightweight analysis entry)
-  const analysis = await db.analysis.create({
-    data: {
-      userId: user.id,
-      fileName: "desktop-capture",
-      fileSizeBytes: 0,
-      gameDurationSecs: ANALYSIS_SECS,
-      analyzedSecs: ANALYSIS_SECS,
-      status: "processing",
-    },
-  });
 
   try {
     const response = await getClient().messages.create({
@@ -114,16 +88,9 @@ export async function POST(req: NextRequest) {
           content: [
             {
               type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: imageBase64,
-              },
+              source: { type: "base64", media_type: mediaType, data: imageBase64 },
             },
-            {
-              type: "text",
-              text: "Analyze this Fortnite replay frame and provide coaching feedback.",
-            },
+            { type: "text", text: "Analyze this Fortnite replay frame and provide coaching feedback." },
           ],
         },
       ],
@@ -140,34 +107,12 @@ export async function POST(req: NextRequest) {
     try {
       result = JSON.parse(rawText);
     } catch {
-      result = {
-        observation: rawText.slice(0, 200),
-        mistakes: [],
-        positives: [],
-        timestamp: new Date().toISOString(),
-      };
+      result = { observation: rawText.slice(0, 200), mistakes: [], positives: [], timestamp: new Date().toISOString() };
     }
 
-    // Ensure timestamp
     result.timestamp = result.timestamp || new Date().toISOString();
-
-    // Mark analysis complete
-    await db.analysis.update({
-      where: { id: analysis.id },
-      data: { status: "complete", mistakesJson: JSON.stringify(result.mistakes) },
-    });
-
     return NextResponse.json(result);
   } catch (err) {
-    await db.analysis.update({
-      where: { id: analysis.id },
-      data: {
-        status: "error",
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
-        analyzedSecs: 0, // don't count failed analysis against quota
-      },
-    });
-
     return NextResponse.json(
       { error: "Analysis failed", message: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }
