@@ -2,6 +2,10 @@
   "name": "replayiq-desktop",
   "version": "1.0.0",
   "description": "ReplayIQ Desktop — AI Fortnite Replay Coach",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anguslow2009-sketch/replayiq.git"
+  },
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc && electron .",
@@ -34,14 +38,11 @@
             "x64"
           ]
         }
-      ],
-      "icon": "assets/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
