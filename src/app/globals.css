@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-fade-in-up: fade-in-up 0.6s ease-out both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2.5s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.5s linear infinite;
+  --animate-spin-slow: spin-slow 8s linear infinite;
+  --animate-border-spin: border-spin 4s linear infinite;
+  --animate-count-in: count-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  --animate-gradient-x: gradient-x 4s ease infinite;
+  --animate-dash: dash 1.2s ease-in-out forwards;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  50% { box-shadow: 0 0 0 12px rgba(59,130,246,0.12); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes border-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+
+@keyframes count-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes dash {
+  from { stroke-dashoffset: 283; }
+  to { stroke-dashoffset: var(--dash-target); }
+}
+
+body {
+  background: #05050f;
+  color: #f8fafc;
+  font-family: var(--font-geist-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dot grid background */
+.dot-grid {
+  background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-gold {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Animated gradient border for Pro card */
+.pro-glow-border {
+  position: relative;
+  padding: 1px;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.pro-glow-border::before {
+  content: '';
+  position: absolute;
+  width: 250%;
+  height: 250%;
+  top: -75%;
+  left: -75%;
+  background: conic-gradient(from 0deg, transparent 0deg, #3b82f6 60deg, #7c3aed 130deg, transparent 180deg, transparent 360deg);
+  animation: border-spin 4s linear infinite;
+}
+
+/* Shimmer CTA button */
+.shimmer-cta {
+  background: linear-gradient(
+    90deg,
+    #1d4ed8 0%,
+    #3b82f6 30%,
+    #60a5fa 50%,
+    #3b82f6 70%,
+    #1d4ed8 100%
+  );
+  background-size: 200% auto;
+  animation: shimmer 2.5s linear infinite;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.shimmer-cta:hover {
+  animation-play-state: paused;
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+

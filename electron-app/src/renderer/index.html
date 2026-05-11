@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>ReplayIQ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #05050f;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --text: #f8fafc;
+      --muted: #64748b;
+      --blue: #3b82f6;
+      --violet: #7c3aed;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f97316;
+      --yellow: #eab308;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── Title bar ── */
+    #titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    #titlebar .logo {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    #titlebar .logo-icon {
+      width: 22px; height: 22px;
+      background: linear-gradient(135deg, #3b82f6, #7c3aed);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+    }
+
+    #titlebar .win-controls {
+      display: flex; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+
+    .win-btn {
+      width: 28px; height: 22px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .win-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .win-btn.close:hover { background: rgba(239,68,68,0.2); color: var(--red); }
+
+    /* ── Status bar ── */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.pulse { animation: pulse 2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.3); }
+    }
+
+    .dot-gray   { background: #475569; }
+    .dot-red    { background: var(--red); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-green  { background: var(--green); }
+    .dot-blue   { background: var(--blue); animation: pulse 1s ease-in-out infinite; }
+
+    #status-text { color: var(--muted); flex: 1; }
+
+    #manual-capture-btn {
+      padding: 4px 10px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 6px;
+      color: #93c5fd;
+      cursor: pointer;
+      font-size: 11px;
+      display: none;
+      transition: background 0.15s;
+    }
+    #manual-capture-btn:hover { background: rgba(59,130,246,0.2); }
+    #manual-capture-btn.visible { display: block; }
+
+    /* ── Main content ── */
+    #content {
+      height: calc(100vh - 44px - 41px);
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #content::-webkit-scrollbar { width: 4px; }
+    #content::-webkit-scrollbar-track { background: transparent; }
+    #content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    /* ── Auth screen ── */
+    #auth-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      height: 100%;
+      gap: 16px;
+      padding: 20px;
+    }
+
+    .auth-logo {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, #3b82f6, #7c3aed);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 8px 32px rgba(59,130,246,0.3);
+    }
+
+    #auth-screen h2 { font-size: 18px; font-weight: 700; }
+    #auth-screen p { color: var(--muted); line-height: 1.5; font-size: 12px; }
+
+    .token-input-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .token-input-wrap label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: left;
+    }
+
+    .token-input-row { display: flex; gap: 8px; }
+
+    #token-input {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #token-input:focus { border-color: rgba(59,130,246,0.5); }
+    #token-input::placeholder { color: var(--muted); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary:hover { background: linear-gradient(135deg, #3b82f6, #60a5fa); box-shadow: 0 4px 16px rgba(59,130,246,0.4); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: #60a5fa;
+      border: none;
+      padding: 4px 0;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .btn-ghost:hover { color: #93c5fd; }
+
+    /* ── Idle screens ── */
+    .idle-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .idle-icon { font-size: 32px; }
+    .idle-box h3 { font-size: 15px; font-weight: 700; }
+    .idle-box p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    /* ── Coaching card ── */
+    .coaching-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+      animation: slideIn 0.35s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .card-time { font-size: 11px; color: var(--muted); font-family: monospace; }
+
+    .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    .observation {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    /* ── Mistake item ── */
+    .mistake {
+      border-radius: 8px;
+      padding: 10px 12px;
+      border-left: 3px solid;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .mistake.critical { border-color: var(--red); background: rgba(239,68,68,0.05); }
+    .mistake.major    { border-color: var(--orange); background: rgba(249,115,22,0.05); }
+    .mistake.minor    { border-color: var(--yellow); background: rgba(234,179,8,0.05); }
+
+    .mistake-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+
+    .sev-badge {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: white;
+    }
+    .badge-critical { background: var(--red); }
+    .badge-major    { background: var(--orange); }
+    .badge-minor    { background: var(--yellow); color: #111; }
+
+    .mistake-title { font-size: 12px; font-weight: 600; }
+    .mistake-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
+
+    .fix-box {
+      background: rgba(59,130,246,0.06);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #93c5fd;
+      line-height: 1.5;
+    }
+
+    .fix-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #60a5fa;
+      margin-bottom: 3px;
+    }
+
+    /* ── Positives ── */
+    .positives-section { display: flex; flex-direction: column; gap: 5px; }
+    .positives-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--green);
+    }
+
+    .positive-item {
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+      font-size: 11px;
+      color: #a3e635;
+      line-height: 1.5;
+    }
+
+    .positive-item::before { content: "✓"; color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+    /* ── Rate limited ── */
+    .rate-limit-card {
+      border: 1px solid rgba(245,158,11,0.3);
+      background: rgba(245,158,11,0.05);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .rate-limit-card p { color: #fcd34d; font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+
+    /* ── Analyzing spinner ── */
+    .analyzing-card {
+      border: 1px solid rgba(59,130,246,0.2);
+      background: rgba(59,130,246,0.04);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid rgba(59,130,246,0.15);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .analyzing-text { color: var(--muted); font-size: 12px; }
+
+    /* ── Footer ── */
+    #footer {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.01);
+    }
+
+    #sign-out-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11px; }
+    #sign-out-btn:hover { color: var(--red); }
+  </style>
+</head>
+<body>
+  <!-- Title bar -->
+  <div id="titlebar">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <span>Replay<span style="color:#60a5fa">IQ</span></span>
+    </div>
+    <div class="win-controls">
+      <button class="win-btn" onclick="window.electronAPI.minimize()">─</button>
+      <button class="win-btn close" onclick="window.electronAPI.close()">✕</button>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <div class="status-dot dot-gray" id="status-dot"></div>
+    <span id="status-text">Initializing…</span>
+    <button id="manual-capture-btn" onclick="app.manualCapture()">▶ Analyze Now</button>
+  </div>
+
+  <!-- Main content -->
+  <div id="content">
+    <!-- Auth screen (shown when no token) -->
+    <div id="auth-screen" style="display:none">
+      <div class="auth-logo">⚡</div>
+      <h2>Connect your account</h2>
+      <p>Sign in to ReplayIQ on the website, go to your account page, and paste your desktop token below.</p>
+
+      <div class="token-input-wrap">
+        <label>Desktop Token</label>
+        <div class="token-input-row">
+          <input id="token-input" type="password" placeholder="riq_xxxxxxxxxxxxxxxx" autocomplete="off" />
+          <button class="btn-primary" onclick="app.submitToken()">Connect</button>
+        </div>
+      </div>
+
+      <button class="btn-ghost" onclick="window.electronAPI.openWebsite('/account')">
+        Get my token from the website →
+      </button>
+    </div>
+
+    <!-- Main feed (shown when connected) -->
+    <div id="feed" style="display:none"></div>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    <span id="footer-info">ReplayIQ Desktop</span>
+    <button id="sign-out-btn" onclick="app.signOut()" style="display:none">Sign out</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

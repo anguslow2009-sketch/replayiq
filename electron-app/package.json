@@ -1,0 +1,66 @@
+{
+  "name": "replayiq-desktop",
+  "version": "1.0.0",
+  "description": "ReplayIQ Desktop — AI Fortnite Replay Coach",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "watch": "tsc -w",
+    "build": "tsc",
+    "pack": "tsc && electron-builder --dir",
+    "dist": "tsc && electron-builder"
+  },
+  "build": {
+    "appId": "com.replayiq.desktop",
+    "productName": "ReplayIQ",
+    "copyright": "ReplayIQ",
+    "publish": {
+      "provider": "github",
+      "releaseType": "release"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "protocols": [
+      {
+        "name": "ReplayIQ",
+        "schemes": [
+          "replayiq"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.0.0"
+  }
+}
