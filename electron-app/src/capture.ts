@@ -1,51 +1,46 @@
 import { desktopCapturer, NativeImage } from "electron";
 
-/**
- * Finds the Fortnite window and captures a screenshot.
- * Returns null if Fortnite isn't running or can't be found.
- */
 export async function captureFortniteWindow(
   quality: "low" | "high"
 ): Promise<NativeImage | null> {
   const size =
     quality === "high"
       ? { width: 1920, height: 1080 }
-      : { width: 640, height: 360 };
+      : { width: 960, height: 540 };
 
   const sources = await desktopCapturer.getSources({
-    types: ["window"],
+    types: ["window", "screen"],
     thumbnailSize: size,
   });
 
-  // Fortnite window name patterns
+  // Try to find the Fortnite window first
   const fortnite = sources.find(
     (s) =>
       s.name === "Fortnite" ||
-      s.name.includes("Fortnite ") ||
-      s.name.includes("FortniteClient")
+      s.name.toLowerCase().includes("fortnite") ||
+      s.name.includes("FortniteClient-Win64")
   );
 
-  return fortnite?.thumbnail ?? null;
+  if (fortnite?.thumbnail) return fortnite.thumbnail;
+
+  // Fallback: capture the entire screen (Fortnite may be fullscreen)
+  const screen = sources.find(
+    (s) => s.name === "Entire Screen" || s.name === "Screen 1" || s.id.startsWith("screen:")
+  );
+  return screen?.thumbnail ?? null;
 }
 
-/**
- * Detects whether the captured frame shows the Fortnite replay viewer
- * by scanning the bottom strip for the characteristic dark scrubber bar
- * with orange/white timeline markers.
- *
- * No AI call needed — pure pixel heuristic, runs in <1ms.
- */
+// Lightweight check — just looks for the dark scrubber bar region.
+// Thresholds are intentionally lenient; Claude confirms replay status in vision analysis.
 export function detectReplayMode(frame: NativeImage): boolean {
   const { width, height } = frame.getSize();
   if (width === 0 || height === 0) return false;
 
-  // Raw RGBA bytes
   const bitmap = frame.toBitmap();
 
-  // Scan the bottom 12% of the frame (where the scrubber lives)
-  const stripStartRow = Math.floor(height * 0.88);
+  // Scan the bottom 18% of the frame (replay scrubber can be anywhere in this zone)
+  const stripStartRow = Math.floor(height * 0.82);
   let darkPixels = 0;
-  let orangePixels = 0;
   let totalPixels = 0;
 
   for (let row = stripStartRow; row < height; row++) {
@@ -54,35 +49,18 @@ export function detectReplayMode(frame: NativeImage): boolean {
       const r = bitmap[idx];
       const g = bitmap[idx + 1];
       const b = bitmap[idx + 2];
-
       totalPixels++;
-
-      // Very dark pixel — characteristic of replay scrubber background
-      // (#0d0d0d to #2a2a2a range)
-      if (r < 45 && g < 45 && b < 45) {
-        darkPixels++;
-      }
-
-      // Orange pixel — the replay timeline playhead / progress bar
-      // Fortnite uses roughly #ff8c00 to #ffb347
-      if (r > 180 && g > 90 && g < 180 && b < 60) {
-        orangePixels++;
-      }
+      if (r < 60 && g < 60 && b < 60) darkPixels++;
     }
   }
 
   if (totalPixels === 0) return false;
 
-  const darkRatio = darkPixels / totalPixels;
-
-  // Replay scrubber: >50% dark pixels in bottom strip + at least some orange
-  return darkRatio > 0.5 && orangePixels > 20;
+  // Very lenient — if more than 20% of the bottom strip is dark,
+  // we assume it could be the replay UI. Claude confirms in vision call.
+  return darkPixels / totalPixels > 0.2;
 }
 
-/**
- * Returns true if a Fortnite window source exists at all (name check only,
- * no thumbnail needed — fast).
- */
 export async function isFortniteRunning(): Promise<boolean> {
   const sources = await desktopCapturer.getSources({
     types: ["window"],
@@ -91,7 +69,7 @@ export async function isFortniteRunning(): Promise<boolean> {
   return sources.some(
     (s) =>
       s.name === "Fortnite" ||
-      s.name.includes("Fortnite ") ||
+      s.name.toLowerCase().includes("fortnite") ||
       s.name.includes("FortniteClient")
   );
 }

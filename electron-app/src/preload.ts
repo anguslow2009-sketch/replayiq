@@ -1,40 +1,40 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  openWebsite: (path: string) => ipcRenderer.invoke("open-website", path),
+  // Status & session
   getStatus: () => ipcRenderer.invoke("get-status"),
+  getCurrentSession: () => ipcRenderer.invoke("get-current-session"),
+  getSessions: () => ipcRenderer.invoke("get-sessions"),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke("get-settings"),
+  saveSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke("save-settings", settings),
+
+  // Capture
   manualCapture: () => ipcRenderer.invoke("manual-capture"),
+  forceAnalyze: () => ipcRenderer.invoke("force-analyze"),
+
+  // Chat
+  chat: (message: string, history: unknown[]) => ipcRenderer.invoke("chat", { message, history }),
+
+  // Window controls
   minimize: () => ipcRenderer.invoke("window-minimize"),
+  maximize: () => ipcRenderer.invoke("window-maximize"),
   close: () => ipcRenderer.invoke("window-close"),
+  openWebsite: (path: string) => ipcRenderer.invoke("open-website", path),
   openDevTools: () => ipcRenderer.invoke("open-devtools"),
 
-  onStatusChange: (cb: (payload: StatusPayload) => void) => {
+  // Events
+  onStatusChange: (cb: (payload: unknown) => void) => {
     ipcRenderer.on("status-change", (_e, payload) => cb(payload));
     return () => ipcRenderer.removeAllListeners("status-change");
   },
-  onCoachingResult: (cb: (result: CoachingEvent) => void) => {
+  onCoachingResult: (cb: (result: unknown) => void) => {
     ipcRenderer.on("coaching-result", (_e, result) => cb(result));
     return () => ipcRenderer.removeAllListeners("coaching-result");
   },
+  onSessionUpdate: (cb: (stats: unknown) => void) => {
+    ipcRenderer.on("session-update", (_e, stats) => cb(stats));
+    return () => ipcRenderer.removeAllListeners("session-update");
+  },
 });
-
-export interface StatusPayload {
-  status:
-    | "fortnite_not_running"
-    | "fortnite_running"
-    | "replay_detected"
-    | "analyzing"
-    | "error";
-}
-
-export interface CoachingEvent {
-  type: "coaching" | "error" | "rate_limited";
-  data?: {
-    observation: string;
-    mistakes: { severity: string; title: string; description: string; suggestion: string }[];
-    positives: string[];
-    timestamp: string;
-  };
-  message?: string;
-  error?: string;
-}

@@ -6,367 +6,1233 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
   <title>ReplayIQ</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #05050f;
-      --surface: rgba(255,255,255,0.04);
-      --border: rgba(255,255,255,0.08);
-      --text: #f8fafc;
-      --muted: #64748b;
-      --blue: #3b82f6;
-      --violet: #7c3aed;
-      --green: #22c55e;
-      --red: #ef4444;
-      --orange: #f97316;
-      --yellow: #eab308;
+      --bg:       #040813;
+      --surface:  #0a1628;
+      --card:     #0f1e38;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.12);
+      --text:     #e8f0fe;
+      --muted:    #5a7095;
+      --muted2:   #3a5070;
+      --blue:     #4d9de0;
+      --blue2:    #2a6cb0;
+      --purple:   #7b52d3;
+      --orange:   #f77f00;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --yellow:   #eab308;
+      --glow-blue: rgba(77,157,224,0.15);
+      --glow-purple: rgba(123,82,211,0.15);
     }
 
     html, body {
-      height: 100%;
+      width: 100%; height: 100%;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, 'Segoe UI', sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 13px;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
       overflow: hidden;
+      user-select: none;
     }
+
+    /* ── Layout ── */
+    #app { display: flex; flex-direction: column; height: 100vh; }
 
     /* ── Title bar ── */
     #titlebar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: rgba(255,255,255,0.02);
+      gap: 0;
+      height: 48px;
+      background: rgba(4,8,19,0.95);
       border-bottom: 1px solid var(--border);
       -webkit-app-region: drag;
-      user-select: none;
+      flex-shrink: 0;
     }
 
-    #titlebar .logo {
+    .tb-logo {
       display: flex;
       align-items: center;
-      gap: 7px;
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    #titlebar .logo-icon {
-      width: 22px; height: 22px;
-      background: linear-gradient(135deg, #3b82f6, #7c3aed);
-      border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px;
-    }
-
-    #titlebar .win-controls {
-      display: flex; gap: 6px;
+      gap: 9px;
+      padding: 0 20px;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: -0.3px;
       -webkit-app-region: no-drag;
     }
 
-    .win-btn {
-      width: 28px; height: 22px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--muted);
-      cursor: pointer;
+    .tb-logo-icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px;
-      transition: background 0.15s;
+      font-size: 14px;
+      box-shadow: 0 0 12px var(--glow-blue);
     }
-    .win-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
-    .win-btn.close:hover { background: rgba(239,68,68,0.2); color: var(--red); }
 
-    /* ── Status bar ── */
-    #status-bar {
+    .tb-logo span { color: var(--blue); }
+
+    /* ── Nav tabs ── */
+    #nav {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
+      gap: 2px;
+      flex: 1;
+      padding: 0 8px;
+      -webkit-app-region: no-drag;
     }
 
-    .status-dot {
+    .nav-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      -webkit-app-region: no-drag;
+      white-space: nowrap;
+    }
+
+    .nav-tab:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .nav-tab.active { background: rgba(77,157,224,0.12); color: var(--blue); }
+    .nav-tab .tab-icon { font-size: 14px; }
+
+    .nav-tab .live-badge {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted2);
+      flex-shrink: 0;
+    }
+    .nav-tab .live-badge.active { background: var(--green); animation: pulse 2s infinite; }
+
+    /* ── Status pill ── */
+    #status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 12px;
+      -webkit-app-region: no-drag;
+    }
+
+    #status-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
     }
 
-    .status-dot.pulse { animation: pulse 2s ease-in-out infinite; }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 0.5; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.3); }
-    }
-
-    .dot-gray   { background: #475569; }
-    .dot-red    { background: var(--red); }
-    .dot-yellow { background: var(--yellow); }
-    .dot-green  { background: var(--green); }
-    .dot-blue   { background: var(--blue); animation: pulse 1s ease-in-out infinite; }
-
-    #status-text { color: var(--muted); flex: 1; }
-
-    #manual-capture-btn {
-      padding: 4px 10px;
-      background: rgba(59,130,246,0.1);
-      border: 1px solid rgba(59,130,246,0.25);
-      border-radius: 6px;
-      color: #93c5fd;
-      cursor: pointer;
-      font-size: 11px;
-      display: none;
-      transition: background 0.15s;
-    }
-    #manual-capture-btn:hover { background: rgba(59,130,246,0.2); }
-    #manual-capture-btn.visible { display: block; }
-
-    /* ── Main content ── */
-    #content {
-      height: calc(100vh - 44px - 41px);
-      overflow-y: auto;
-      padding: 14px;
+    /* ── Window controls ── */
+    .win-controls {
       display: flex;
-      flex-direction: column;
-      gap: 12px;
+      align-items: center;
+      gap: 4px;
+      padding: 0 12px;
+      -webkit-app-region: no-drag;
     }
 
-    #content::-webkit-scrollbar { width: 4px; }
-    #content::-webkit-scrollbar-track { background: transparent; }
-    #content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-weight: 600;
-      font-size: 12px;
+    .win-btn {
+      width: 30px; height: 24px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
       cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
       transition: all 0.15s;
     }
-    .btn-primary:hover { background: linear-gradient(135deg, #3b82f6, #60a5fa); box-shadow: 0 4px 16px rgba(59,130,246,0.4); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .win-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .win-btn.close:hover { background: rgba(239,68,68,0.2); color: var(--red); }
 
-    .btn-ghost {
-      background: transparent;
-      color: #60a5fa;
-      border: none;
-      padding: 4px 0;
-      font-size: 12px;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-    .btn-ghost:hover { color: #93c5fd; }
+    /* ── Main content ── */
+    #main { display: flex; flex: 1; overflow: hidden; }
 
-    /* ── Idle screens ── */
-    .idle-box {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      text-align: center;
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 220px;
       background: var(--surface);
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 10px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      padding: 16px 0;
     }
 
-    .idle-icon { font-size: 32px; }
-    .idle-box h3 { font-size: 15px; font-weight: 700; }
-    .idle-box p { color: var(--muted); font-size: 12px; line-height: 1.5; }
-
-    /* ── Coaching card ── */
-    .coaching-card {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
-      overflow: hidden;
-      animation: slideIn 0.35s ease-out;
+    .sidebar-section { padding: 0 12px; margin-bottom: 8px; }
+    .sidebar-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted2);
+      padding: 8px 8px 4px;
     }
 
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
+    /* ── Page content ── */
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    .card-header {
+    #content::-webkit-scrollbar { width: 5px; }
+    #content::-webkit-scrollbar-track { background: transparent; }
+    #content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+    /* ── Page sections ── */
+    .page { display: none; flex-direction: column; gap: 20px; }
+    .page.active { display: flex; }
+
+    /* ── Section header ── */
+    .section-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(255,255,255,0.02);
+      margin-bottom: 4px;
     }
 
-    .card-time { font-size: 11px; color: var(--muted); font-family: monospace; }
-
-    .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
-
-    .observation {
-      font-size: 12px;
-      color: #cbd5e1;
-      line-height: 1.6;
+    .section-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
     }
 
-    /* ── Mistake item ── */
-    .mistake {
-      border-radius: 8px;
-      padding: 10px 12px;
+    .section-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Cards & Grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .card-sm { padding: 14px; border-radius: 12px; }
+
+    .glass {
+      background: rgba(15,30,56,0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border2);
+    }
+
+    /* ── Stat cards ── */
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-icon {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+
+    .stat-label { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .stat-change { font-size: 11px; font-weight: 600; }
+    .stat-change.up { color: var(--green); }
+    .stat-change.down { color: var(--red); }
+
+    /* ── Skill bars ── */
+    .skill-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .skill-name { font-size: 11px; font-weight: 600; color: var(--muted); width: 90px; flex-shrink: 0; text-transform: capitalize; }
+    .skill-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .skill-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+      background: linear-gradient(90deg, var(--blue2), var(--blue));
+    }
+    .skill-score { font-size: 11px; font-weight: 700; width: 24px; text-align: right; }
+
+    /* ── Mistake cards ── */
+    .mistake-card {
+      border-radius: 12px;
+      padding: 14px;
       border-left: 3px solid;
       background: rgba(255,255,255,0.02);
+      margin-bottom: 10px;
+      animation: slideUp 0.3s ease-out;
     }
 
-    .mistake.critical { border-color: var(--red); background: rgba(239,68,68,0.05); }
-    .mistake.major    { border-color: var(--orange); background: rgba(249,115,22,0.05); }
-    .mistake.minor    { border-color: var(--yellow); background: rgba(234,179,8,0.05); }
+    .mistake-card.critical { border-color: var(--red); background: rgba(239,68,68,0.05); }
+    .mistake-card.major    { border-color: var(--orange); background: rgba(247,127,0,0.05); }
+    .mistake-card.minor    { border-color: var(--yellow); background: rgba(234,179,8,0.05); }
 
     .mistake-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 5px;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
     }
 
     .sev-badge {
       font-size: 9px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 2px 6px;
-      border-radius: 4px;
+      letter-spacing: 0.07em;
+      padding: 2px 7px;
+      border-radius: 5px;
       color: white;
+      flex-shrink: 0;
     }
-    .badge-critical { background: var(--red); }
-    .badge-major    { background: var(--orange); }
-    .badge-minor    { background: var(--yellow); color: #111; }
+    .sev-badge.critical { background: var(--red); }
+    .sev-badge.major    { background: var(--orange); }
+    .sev-badge.minor    { background: var(--yellow); color: #111; }
 
-    .mistake-title { font-size: 12px; font-weight: 600; }
-    .mistake-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
-
-    .fix-box {
-      background: rgba(59,130,246,0.06);
-      border: 1px solid rgba(59,130,246,0.15);
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 11px;
-      color: #93c5fd;
-      line-height: 1.5;
-    }
-
-    .fix-label {
+    .cat-badge {
       font-size: 9px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #60a5fa;
-      margin-bottom: 3px;
-    }
-
-    /* ── Positives ── */
-    .positives-section { display: flex; flex-direction: column; gap: 5px; }
-    .positives-label {
-      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: var(--green);
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255,255,255,0.07);
+      color: var(--muted);
+      flex-shrink: 0;
     }
 
-    .positive-item {
+    .mistake-title { font-size: 13px; font-weight: 700; flex: 1; }
+
+    .mistake-desc { font-size: 12px; color: #aac4e0; line-height: 1.5; margin-bottom: 10px; }
+
+    .insight-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .insight-box {
+      border-radius: 8px;
+      padding: 9px 11px;
+    }
+
+    .insight-box.why { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); }
+    .insight-box.pro { background: rgba(77,157,224,0.08); border: 1px solid rgba(77,157,224,0.15); }
+
+    .insight-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 4px;
+    }
+    .insight-box.why .insight-label { color: var(--red); }
+    .insight-box.pro .insight-label { color: var(--blue); }
+    .insight-text { font-size: 11px; color: #cbd5e1; line-height: 1.5; }
+
+    .suggestion-box {
+      margin-top: 8px;
+      background: rgba(77,157,224,0.05);
+      border: 1px solid rgba(77,157,224,0.12);
+      border-radius: 8px;
+      padding: 8px 11px;
+    }
+    .suggestion-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--blue);
+      margin-bottom: 3px;
+    }
+    .suggestion-text { font-size: 11px; color: #93c5fd; line-height: 1.5; }
+
+    /* ── Positive card ── */
+    .positive-card {
       display: flex;
-      gap: 7px;
       align-items: flex-start;
-      font-size: 11px;
-      color: #a3e635;
+      gap: 10px;
+      background: rgba(34,197,94,0.05);
+      border: 1px solid rgba(34,197,94,0.15);
+      border-radius: 10px;
+      padding: 10px 13px;
+      margin-bottom: 8px;
+    }
+    .positive-check { color: var(--green); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .positive-title { font-size: 12px; font-weight: 700; color: #86efac; margin-bottom: 2px; }
+    .positive-desc  { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    /* ── Analysis result card ── */
+    .analysis-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--card);
+      overflow: hidden;
+      animation: slideUp 0.4s ease-out;
+    }
+
+    .analysis-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .analysis-card-body { padding: 16px; }
+
+    .observation-text {
+      font-size: 12px;
+      color: #c4d8f0;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      border-left: 3px solid var(--blue2);
+    }
+
+    /* ── Chat ── */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 300px;
+      max-height: 420px;
+    }
+
+    #chat-messages::-webkit-scrollbar { width: 4px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    .chat-msg {
+      display: flex;
+      gap: 10px;
+      animation: slideUp 0.25s ease-out;
+    }
+
+    .chat-msg.user { flex-direction: row-reverse; }
+
+    .chat-avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      background: rgba(77,157,224,0.15);
+      border: 1px solid rgba(77,157,224,0.2);
+    }
+
+    .chat-msg.user .chat-avatar {
+      background: rgba(123,82,211,0.15);
+      border-color: rgba(123,82,211,0.2);
+    }
+
+    .chat-bubble {
+      max-width: 75%;
+      padding: 9px 13px;
+      border-radius: 12px;
+      font-size: 12px;
       line-height: 1.5;
     }
 
-    .positive-item::before { content: "✓"; color: var(--green); font-weight: 700; flex-shrink: 0; }
-
-    /* ── Rate limited ── */
-    .rate-limit-card {
-      border: 1px solid rgba(245,158,11,0.3);
-      background: rgba(245,158,11,0.05);
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center;
+    .chat-msg.coach .chat-bubble {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
     }
 
-    .rate-limit-card p { color: #fcd34d; font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+    .chat-msg.user .chat-bubble {
+      background: rgba(77,157,224,0.1);
+      border: 1px solid rgba(77,157,224,0.2);
+      border-bottom-right-radius: 4px;
+      color: #c4d8f0;
+    }
 
-    /* ── Analyzing spinner ── */
-    .analyzing-card {
-      border: 1px solid rgba(59,130,246,0.2);
-      background: rgba(59,130,246,0.04);
-      border-radius: 12px;
-      padding: 20px;
+    .chat-input-row {
       display: flex;
-      flex-direction: column;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    #chat-input {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      transition: border-color 0.15s;
+    }
+    #chat-input:focus { border-color: rgba(77,157,224,0.4); }
+    #chat-input::placeholder { color: var(--muted); }
+
+    .btn-send {
+      background: linear-gradient(135deg, var(--blue2), var(--blue));
+      border: none;
+      border-radius: 10px;
+      color: white;
+      padding: 0 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 700;
+    }
+    .btn-send:hover { filter: brightness(1.1); box-shadow: 0 4px 12px var(--glow-blue); }
+    .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Quick questions ── */
+    .quick-questions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 16px 12px;
+    }
+
+    .quick-q {
+      background: rgba(77,157,224,0.08);
+      border: 1px solid rgba(77,157,224,0.15);
+      border-radius: 16px;
+      color: #93c5fd;
+      font-size: 11px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .quick-q:hover { background: rgba(77,157,224,0.15); border-color: rgba(77,157,224,0.3); }
+
+    /* ── Settings ── */
+    .setting-group { margin-bottom: 24px; }
+    .setting-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+
+    .setting-label { font-size: 12px; font-weight: 600; }
+    .setting-desc  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .setting-control { flex-shrink: 0; }
+
+    select {
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select:focus { border-color: var(--blue); }
+
+    input[type="range"] {
+      accent-color: var(--blue);
+      width: 120px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .checkbox-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 20px;
+      border: 1px solid var(--border2);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .checkbox-pill input { display: none; }
+    .checkbox-pill.checked {
+      background: rgba(77,157,224,0.12);
+      border-color: rgba(77,157,224,0.35);
+      color: var(--blue);
+    }
+
+    /* ── Analyzing state ── */
+    .analyzing-banner {
+      display: flex;
       align-items: center;
       gap: 12px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: rgba(77,157,224,0.06);
+      border: 1px solid rgba(77,157,224,0.15);
     }
 
-    .spinner {
-      width: 32px; height: 32px;
-      border: 2px solid rgba(59,130,246,0.15);
+    .spinner-sm {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(77,157,224,0.15);
       border-top-color: var(--blue);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 48px 24px;
+      gap: 12px;
+      border: 1px dashed var(--border2);
+      border-radius: 16px;
+    }
+
+    .empty-icon { font-size: 40px; margin-bottom: 4px; }
+    .empty-title { font-size: 15px; font-weight: 700; }
+    .empty-desc  { font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 320px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 9px;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue2), var(--blue));
+      color: white;
+      box-shadow: 0 4px 12px var(--glow-blue);
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border2);
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .btn-orange {
+      background: linear-gradient(135deg, #c46200, var(--orange));
+      color: white;
+    }
+    .btn-orange:hover { filter: brightness(1.1); }
+
+    /* ── History items ── */
+    .history-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .history-item:hover { border-color: var(--border2); background: rgba(15,30,56,0.9); }
+    .history-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .history-date { font-size: 12px; font-weight: 700; }
+    .history-meta { font-size: 11px; color: var(--muted); }
+    .history-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .h-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+    .h-badge.red { background: rgba(239,68,68,0.12); color: #fca5a5; }
+    .h-badge.green { background: rgba(34,197,94,0.12); color: #86efac; }
+    .h-badge.blue { background: rgba(77,157,224,0.12); color: #93c5fd; }
+
+    /* ── Notification badge ── */
+    .notif-count {
+      background: var(--red);
+      color: white;
+      font-size: 9px;
+      font-weight: 800;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    /* ── Improvement chart ── */
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 60px;
+    }
+
+    .chart-bar {
+      flex: 1;
+      border-radius: 3px 3px 0 0;
+      min-height: 4px;
+      transition: height 0.5s ease;
+      background: linear-gradient(180deg, var(--blue), var(--blue2));
+      opacity: 0.7;
+    }
+    .chart-bar:hover { opacity: 1; }
+
+    /* ── Animations ── */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%       { opacity: 1; transform: scale(1.3); }
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .analyzing-text { color: var(--muted); font-size: 12px; }
-
-    /* ── Footer ── */
-    #footer {
-      padding: 8px 14px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 11px;
-      color: var(--muted);
-      background: rgba(255,255,255,0.01);
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
     }
 
+    /* ── Dot colors ── */
+    .dot-gray   { background: var(--muted2); }
+    .dot-red    { background: var(--red); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-green  { background: var(--green); }
+    .dot-blue   { background: var(--blue); animation: pulse 1.2s infinite; }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 100;
+      transition: opacity 0.3s;
+    }
+
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    .loading-logo {
+      width: 60px; height: 60px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      box-shadow: 0 0 40px var(--glow-blue), 0 0 80px var(--glow-purple);
+      animation: pulse 2s infinite;
+    }
+
+    .loading-text {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* ── Sidebar nav items ── */
+    .sidebar-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.15s;
+      text-align: left;
+      font-family: inherit;
+    }
+    .sidebar-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .sidebar-nav-item.active { background: rgba(77,157,224,0.1); color: var(--blue); }
+    .sidebar-nav-item .snav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+    /* ── Session stats strip ── */
+    .session-strip {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .session-strip-stat { display: flex; flex-direction: column; gap: 1px; }
+    .session-strip-stat .val { font-size: 15px; font-weight: 800; }
+    .session-strip-stat .lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+
+    .strip-sep { width: 1px; height: 28px; background: var(--border); }
+
+    /* ── Force analyze btn ── */
+    #force-btn {
+      background: linear-gradient(135deg, #7b2d00, var(--orange));
+      border: none;
+      border-radius: 9px;
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 6px 14px;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: all 0.15s;
+      margin-left: auto;
+    }
+    #force-btn:hover { filter: brightness(1.15); }
+    #force-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Typing indicator ── */
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 8px 12px;
+    }
+    .typing-dot {
+      width: 6px; height: 6px;
+      background: var(--muted);
+      border-radius: 50%;
+      animation: typing 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
   </style>
 </head>
 <body>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="loading-logo">⚡</div>
+  <div class="loading-text">Loading ReplayIQ…</div>
+</div>
+
+<div id="app" style="display:none">
   <!-- Title bar -->
   <div id="titlebar">
-    <div class="logo">
-      <div class="logo-icon">⚡</div>
-      <span>Replay<span style="color:#60a5fa">IQ</span></span>
+    <div class="tb-logo">
+      <div class="tb-logo-icon">⚡</div>
+      Replay<span>IQ</span>
     </div>
+
+    <div id="nav">
+      <button class="nav-tab active" data-page="dashboard" onclick="app.navigate('dashboard')">
+        <span class="tab-icon">⊞</span> Dashboard
+      </button>
+      <button class="nav-tab" data-page="live" onclick="app.navigate('live')">
+        <span class="live-badge" id="live-badge"></span> Live Coaching
+      </button>
+      <button class="nav-tab" data-page="history" onclick="app.navigate('history')">
+        <span class="tab-icon">📋</span> History
+      </button>
+      <button class="nav-tab" data-page="chat" onclick="app.navigate('chat')">
+        <span class="tab-icon">💬</span> Coach Chat
+      </button>
+      <button class="nav-tab" data-page="settings" onclick="app.navigate('settings')">
+        <span class="tab-icon">⚙</span> Settings
+      </button>
+    </div>
+
+    <div id="status-pill">
+      <div id="status-dot" class="dot-gray"></div>
+      <span id="status-text">Starting…</span>
+    </div>
+
     <div class="win-controls">
       <button class="win-btn" onclick="window.electronAPI.minimize()">─</button>
+      <button class="win-btn" onclick="window.electronAPI.maximize()">□</button>
       <button class="win-btn close" onclick="window.electronAPI.close()">✕</button>
     </div>
   </div>
 
-  <!-- Status bar -->
-  <div id="status-bar">
-    <div class="status-dot dot-gray" id="status-dot"></div>
-    <span id="status-text">Initializing…</span>
-    <button id="manual-capture-btn" onclick="app.manualCapture()">▶ Analyze Now</button>
+  <!-- Main area -->
+  <div id="main">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Session</div>
+        <div id="sidebar-session-stats" style="padding:8px 8px 4px;color:var(--muted);font-size:11px;">
+          No active session
+        </div>
+      </div>
+      <div class="divider" style="margin:4px 12px"></div>
+      <div class="sidebar-section" style="margin-top:8px">
+        <div class="sidebar-label">Focus Areas</div>
+        <div id="sidebar-focus" style="padding:8px;color:var(--muted);font-size:11px;">
+          Loading…
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="sidebar-section">
+        <button class="sidebar-nav-item" onclick="window.electronAPI.openWebsite('/')">
+          <span class="snav-icon">🌐</span> Open Website
+        </button>
+        <button class="sidebar-nav-item" onclick="window.electronAPI.openDevTools()">
+          <span class="snav-icon">🔧</span> Developer Tools
+        </button>
+      </div>
+    </div>
+
+    <!-- Page content -->
+    <div id="content">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="section-header">
+          <div>
+            <div class="section-title" id="dash-greeting">Welcome back</div>
+            <div class="section-subtitle">Your Fortnite coaching hub</div>
+          </div>
+          <button id="force-btn" onclick="app.forceAnalyze()">⚡ Analyze Now</button>
+        </div>
+
+        <!-- Status banner -->
+        <div id="status-banner" class="card" style="padding:16px 20px;display:flex;align-items:center;gap:14px;">
+          <div style="font-size:28px" id="banner-icon">🎮</div>
+          <div style="flex:1">
+            <div style="font-weight:700;margin-bottom:3px" id="banner-title">Open Fortnite to begin</div>
+            <div style="font-size:11px;color:var(--muted)" id="banner-desc">Launch Fortnite and open a replay from Career → Replays</div>
+          </div>
+          <button class="btn btn-secondary" style="font-size:11px" onclick="app.navigate('live')">Live View →</button>
+        </div>
+
+        <!-- Stats row -->
+        <div class="grid-4" id="stat-cards">
+          <div class="card stat-card card-sm">
+            <div class="stat-icon">🎬</div>
+            <div class="stat-value" id="stat-analyses">0</div>
+            <div class="stat-label">Frames Analyzed</div>
+          </div>
+          <div class="card stat-card card-sm">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-value" id="stat-mistakes" style="color:var(--red)">0</div>
+            <div class="stat-label">Mistakes Found</div>
+          </div>
+          <div class="card stat-card card-sm">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="stat-positives" style="color:var(--green)">0</div>
+            <div class="stat-label">Good Plays</div>
+          </div>
+          <div class="card stat-card card-sm">
+            <div class="stat-icon">📈</div>
+            <div class="stat-value" id="stat-sessions">0</div>
+            <div class="stat-label">Sessions</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Skill breakdown -->
+          <div class="card">
+            <div style="font-weight:700;font-size:13px;margin-bottom:14px">Skill Breakdown</div>
+            <div id="skill-bars">
+              <div style="color:var(--muted);font-size:12px">No data yet — analyze a replay to see your skill ratings.</div>
+            </div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="card">
+            <div style="font-weight:700;font-size:13px;margin-bottom:14px">Recent Activity</div>
+            <div id="recent-activity">
+              <div style="color:var(--muted);font-size:12px">No recent sessions.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Biggest weakness -->
+        <div class="card" id="weakness-card" style="display:none">
+          <div style="font-weight:700;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            <span>🎯</span> Focus Area This Session
+          </div>
+          <div id="weakness-content"></div>
+        </div>
+      </div>
+
+      <!-- ── LIVE COACHING ── -->
+      <div class="page" id="page-live">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Live Coaching</div>
+            <div class="section-subtitle">AI analysis runs automatically every 30s during replays</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-secondary" style="font-size:11px" id="manual-btn" onclick="app.manualCapture()">📸 Capture Now</button>
+            <button class="btn btn-orange" style="font-size:11px" id="force-analyze-btn" onclick="app.forceAnalyze()">⚡ Force Analyze</button>
+          </div>
+        </div>
+
+        <!-- Status -------------------------------------------------------- -->
+        <div id="live-status-card" class="card" style="padding:16px 20px">
+          <div id="live-status-content"></div>
+        </div>
+
+        <!-- Analyzing banner -->
+        <div class="analyzing-banner" id="analyzing-banner" style="display:none">
+          <div class="spinner-sm"></div>
+          <div>
+            <div style="font-weight:700;font-size:12px">Analyzing gameplay frame…</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">Claude is reviewing your replay screenshot</div>
+          </div>
+        </div>
+
+        <!-- Live feed -->
+        <div id="live-feed"></div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div class="page" id="page-history">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Session History</div>
+            <div class="section-subtitle">Your past replay coaching sessions</div>
+          </div>
+        </div>
+
+        <div id="history-list">
+          <div class="empty-state">
+            <div class="empty-icon">📋</div>
+            <div class="empty-title">No sessions yet</div>
+            <div class="empty-desc">Your replay coaching sessions will appear here after you analyze your first replay.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COACH CHAT ── -->
+      <div class="page" id="page-chat">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Coach Chat</div>
+            <div class="section-subtitle">Ask your AI coach anything about your gameplay</div>
+          </div>
+        </div>
+
+        <div class="card" style="display:flex;flex-direction:column;padding:0;overflow:hidden">
+          <div id="chat-messages">
+            <div class="chat-msg coach">
+              <div class="chat-avatar">⚡</div>
+              <div class="chat-bubble">
+                Hey! I'm your ReplayIQ coach. Open a replay and let me analyze some frames, then ask me anything — "Why did I lose that fight?", "What's my biggest mistake?", "How do I improve my positioning?" Let's get to work.
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-questions">
+            <button class="quick-q" onclick="app.sendQuickQ('Why did I die there?')">Why did I die?</button>
+            <button class="quick-q" onclick="app.sendQuickQ('What is my biggest weakness this session?')">Biggest weakness?</button>
+            <button class="quick-q" onclick="app.sendQuickQ('What should I practice to improve fastest?')">What to practice?</button>
+            <button class="quick-q" onclick="app.sendQuickQ('How was my positioning?')">My positioning?</button>
+            <button class="quick-q" onclick="app.sendQuickQ('What do pro players do differently in these situations?')">What pros do?</button>
+          </div>
+
+          <div class="chat-input-row">
+            <textarea id="chat-input" rows="1" placeholder="Ask your coach anything…"></textarea>
+            <button class="btn-send" onclick="app.sendChat()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS ── -->
+      <div class="page" id="page-settings">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Settings</div>
+            <div class="section-subtitle">Customize your coaching experience</div>
+          </div>
+          <button class="btn btn-primary" onclick="app.saveSettings()">Save Changes</button>
+        </div>
+
+        <div class="card">
+          <div class="setting-group">
+            <div class="setting-group-title">Skill Level</div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">Your current skill level</div>
+                <div class="setting-desc">Affects the depth and terminology of coaching feedback</div>
+              </div>
+              <div class="setting-control">
+                <select id="setting-skill">
+                  <option value="beginner">Beginner (under Arena)</option>
+                  <option value="intermediate" selected>Intermediate (Open/Contender)</option>
+                  <option value="advanced">Advanced (Champion+)</option>
+                  <option value="competitive">Competitive (Tournament player)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-group-title">Coaching Style</div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">How direct should your coach be?</div>
+                <div class="setting-desc">Balanced gives honest feedback with encouragement</div>
+              </div>
+              <div class="setting-control">
+                <select id="setting-style">
+                  <option value="encouraging">Encouraging (focus on positives)</option>
+                  <option value="balanced" selected>Balanced (honest + supportive)</option>
+                  <option value="harsh">Harsh (pure criticism, no fluff)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-group-title">Focus Areas</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Which aspects of your game do you want to focus on? Leave blank for all areas.</div>
+            <div class="checkbox-group" id="focus-checkboxes">
+              <label class="checkbox-pill" data-area="positioning">
+                <input type="checkbox" value="positioning"> Positioning
+              </label>
+              <label class="checkbox-pill" data-area="building">
+                <input type="checkbox" value="building"> Building
+              </label>
+              <label class="checkbox-pill" data-area="mechanics">
+                <input type="checkbox" value="mechanics"> Mechanics
+              </label>
+              <label class="checkbox-pill" data-area="rotation">
+                <input type="checkbox" value="rotation"> Rotations
+              </label>
+              <label class="checkbox-pill" data-area="decision_making">
+                <input type="checkbox" value="decision_making"> Decision Making
+              </label>
+              <label class="checkbox-pill" data-area="awareness">
+                <input type="checkbox" value="awareness"> Awareness
+              </label>
+              <label class="checkbox-pill" data-area="looting">
+                <input type="checkbox" value="looting"> Looting
+              </label>
+              <label class="checkbox-pill" data-area="healing">
+                <input type="checkbox" value="healing"> Healing
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <div class="setting-group-title">Capture Interval</div>
+            <div class="setting-row">
+              <div>
+                <div class="setting-label">Seconds between analyses</div>
+                <div class="setting-desc">Lower = more frequent, more API cost</div>
+              </div>
+              <div class="setting-control" style="display:flex;align-items:center;gap:10px">
+                <input type="range" id="setting-interval" min="15" max="120" step="5" value="30">
+                <span id="interval-display" style="font-weight:700;width:36px;font-size:12px">30s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--muted);padding:0 4px">
+          Note: Features like frame-by-frame timeline control, aim tracking graphs, and 3D path visualization require direct access to Fortnite's game data, which we don't use to keep this app safe and within Epic's ToS. Everything here is based on AI vision analysis of your screen.
+        </div>
+      </div>
+
+    </div>
   </div>
 
-  <!-- Main content -->
-  <div id="content">
-    <div id="feed"></div>
+  <!-- Session strip at bottom -->
+  <div class="session-strip" id="session-strip" style="display:none">
+    <div class="session-strip-stat">
+      <span class="val" id="strip-analyses">0</span>
+      <span class="lbl">Frames</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="session-strip-stat">
+      <span class="val" style="color:var(--red)" id="strip-mistakes">0</span>
+      <span class="lbl">Mistakes</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="session-strip-stat">
+      <span class="val" style="color:var(--green)" id="strip-positives">0</span>
+      <span class="lbl">Good Plays</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="session-strip-stat">
+      <span class="val" id="strip-time">0:00</span>
+      <span class="lbl">Duration</span>
+    </div>
   </div>
+</div>
 
-  <!-- Footer -->
-  <div id="footer">
-    <span id="footer-info">ReplayIQ Desktop</span>
-  </div>
-
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

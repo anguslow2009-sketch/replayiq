@@ -10,7 +10,6 @@ function getClient(): Anthropic {
   return _client;
 }
 
-// Simple in-memory rate limit: 1 analysis per 30 seconds per IP
 const lastCallByIp = new Map<string, number>();
 const COOLDOWN_MS = 30_000;
 
@@ -22,36 +21,71 @@ function checkIpRateLimit(ip: string): boolean {
   return true;
 }
 
-const VISION_SYSTEM_PROMPT = `You are an elite Fortnite competitive coach watching a player's replay in real-time. You are analyzing a screenshot taken from within the Fortnite replay viewer.
+const VISION_SYSTEM_PROMPT = `You are an elite Fortnite competitive coach with 10,000+ hours of coaching experience. You are analyzing a screenshot from the Fortnite replay viewer.
 
-Your job is to identify mistakes and coaching opportunities visible in this exact frame.
+FIRST: Determine if this screenshot shows the Fortnite REPLAY VIEWER (not the main menu, lobby, loading screen, or live gameplay). The replay viewer has a scrubber bar at the bottom, camera controls, and shows past gameplay from a third-person/cinematic angle.
 
-WHAT TO LOOK FOR:
-- Positioning: Is the player exposed, low ground, bad cover?
-- Building: Unnecessary structures, missing walls, poor box position?
-- Storm awareness: Are they near the storm circle edge without need?
-- Health/shield status visible in HUD: Low health with avoidable aggression?
-- Map position vs zone: Late rotation, bad angle relative to remaining players?
-- Weapon loadout visible: Wrong weapon for the situation?
-- Material counts if visible: Out of materials in a build fight?
+If it IS a replay frame, provide deep coaching analysis. If it is NOT a replay frame, set is_replay to false and leave other fields empty.
 
-RESPONSE FORMAT — respond ONLY with valid JSON, no markdown:
+CATEGORIES to classify mistakes and strengths:
+- positioning (high ground, cover, exposure, angles)
+- building (edits, box fights, ramp rushes, structure choices)
+- mechanics (edits, aim, movement, building speed)
+- rotation (zone awareness, timing, pathing)
+- decision_making (when to fight, heal, push, retreat)
+- looting (priority, speed, inventory management)
+- healing (timing, cover usage, potion selection)
+- awareness (storm, players, audio cues)
+
+For EACH mistake, provide:
+- WHY it was bad (specific tactical reason, not generic)
+- WHAT PRO PLAYERS DO instead (specific technique or habit)
+- A concrete actionable fix
+
+SKILL SCORES (0-10) based on what you can observe:
+- Rate only what is visible in the frame. Use null if not observable.
+
+RESPONSE FORMAT — valid JSON only, no markdown, no explanation outside JSON:
 {
-  "observation": "1-2 sentence description of what you see in this frame",
+  "is_replay": true,
+  "observation": "2-3 sentence vivid description of what's happening in this exact frame — player position, situation, health/shields if visible, build structure, storm proximity",
   "mistakes": [
     {
       "severity": "critical|major|minor",
-      "title": "Short mistake title",
-      "description": "What's wrong and why it matters competitively",
-      "suggestion": "Specific, actionable fix"
+      "category": "positioning|building|mechanics|rotation|decision_making|looting|healing|awareness",
+      "title": "Short punchy mistake title (5 words max)",
+      "description": "What mistake is happening and why it's bad",
+      "why_bad": "The specific competitive reason this costs you — e.g. 'exposes your head to 3 angles with no cover option'",
+      "what_pros_do": "Specific pro technique — e.g. 'Place a cone above your 1x1 before peeking to force one angle'",
+      "suggestion": "One actionable thing to do RIGHT NOW in this situation"
     }
   ],
-  "positives": ["thing done well if any — omit array if nothing notable"],
+  "positives": [
+    {
+      "category": "positioning|building|mechanics|rotation|decision_making|looting|healing|awareness",
+      "title": "What you did well",
+      "description": "Why this was a good play"
+    }
+  ],
+  "skill_scores": {
+    "positioning": null,
+    "building": null,
+    "mechanics": null,
+    "rotation": null,
+    "decision_making": null,
+    "awareness": null
+  },
+  "game_state": {
+    "phase": "early|mid|endgame|unknown",
+    "health_visible": false,
+    "storm_visible": false,
+    "in_fight": false
+  },
   "timestamp": "<ISO string>"
 }
 
-If this frame does not show gameplay (loading screen, menus, non-replay content), respond with:
-{"observation":"Non-gameplay frame","mistakes":[],"positives":[],"timestamp":"<ISO string>"}`;
+If not a replay:
+{"is_replay": false, "observation": "", "mistakes": [], "positives": [], "skill_scores": {}, "game_state": {}, "timestamp": "<ISO>"}`;
 
 export async function POST(req: NextRequest) {
   const ip =
@@ -68,20 +102,28 @@ export async function POST(req: NextRequest) {
 
   let imageBase64: string;
   let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  let skillLevel: string;
+  let focusAreas: string[];
   try {
     const body = await req.json();
     imageBase64 = body.imageBase64;
     mediaType = body.mediaType || "image/jpeg";
+    skillLevel = body.skillLevel || "intermediate";
+    focusAreas = body.focusAreas || [];
     if (!imageBase64) throw new Error("missing imageBase64");
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  const userContext = skillLevel || focusAreas.length
+    ? `\n\nPLAYER CONTEXT: Skill level: ${skillLevel}. Focus areas: ${focusAreas.length ? focusAreas.join(", ") : "all"}. Tailor feedback depth accordingly.`
+    : "";
+
   try {
     const response = await getClient().messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: VISION_SYSTEM_PROMPT,
+      max_tokens: 2048,
+      system: VISION_SYSTEM_PROMPT + userContext,
       messages: [
         {
           role: "user",
@@ -90,27 +132,35 @@ export async function POST(req: NextRequest) {
               type: "image",
               source: { type: "base64", media_type: mediaType, data: imageBase64 },
             },
-            { type: "text", text: "Analyze this Fortnite replay frame and provide coaching feedback." },
+            {
+              type: "text",
+              text: "Analyze this Fortnite replay frame. Provide elite-level coaching feedback.",
+            },
           ],
         },
       ],
     });
 
     const rawText = response.content[0].type === "text" ? response.content[0].text : "";
-    let result: {
-      observation: string;
-      mistakes: { severity: string; title: string; description: string; suggestion: string }[];
-      positives: string[];
-      timestamp: string;
-    };
 
+    let result: Record<string, unknown>;
     try {
-      result = JSON.parse(rawText);
+      // Strip any markdown code fences if present
+      const cleaned = rawText.replace(/^```json\s*/m, "").replace(/```\s*$/m, "").trim();
+      result = JSON.parse(cleaned);
     } catch {
-      result = { observation: rawText.slice(0, 200), mistakes: [], positives: [], timestamp: new Date().toISOString() };
+      result = {
+        is_replay: false,
+        observation: rawText.slice(0, 200),
+        mistakes: [],
+        positives: [],
+        skill_scores: {},
+        game_state: {},
+        timestamp: new Date().toISOString(),
+      };
     }
 
-    result.timestamp = result.timestamp || new Date().toISOString();
+    if (!result.timestamp) result.timestamp = new Date().toISOString();
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

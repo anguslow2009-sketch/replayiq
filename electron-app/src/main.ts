@@ -12,11 +12,69 @@ import * as path from "path";
 import Store from "electron-store";
 import { captureFortniteWindow, detectReplayMode } from "./capture";
 import { analyzeFrame } from "./api";
+import { chatWithCoach } from "./chat";
 
-const store = new Store<{ apiBase: string; captureIntervalSecs: number }>();
+interface Settings {
+  apiBase: string;
+  captureIntervalSecs: number;
+  skillLevel: string;
+  focusAreas: string[];
+  coachingStyle: string;
+}
+
+interface AnalysisMistake {
+  severity: string;
+  category: string;
+  title: string;
+  description: string;
+  why_bad: string;
+  what_pros_do: string;
+  suggestion: string;
+}
+
+interface AnalysisPositive {
+  category: string;
+  title: string;
+  description: string;
+}
+
+interface AnalysisEntry {
+  timestamp: string;
+  observation: string;
+  mistakes: AnalysisMistake[];
+  positives: AnalysisPositive[];
+  skill_scores: Record<string, number | null>;
+  game_state: Record<string, unknown>;
+  is_replay: boolean;
+}
+
+interface Session {
+  id: string;
+  startedAt: string;
+  endedAt?: string;
+  analyses: AnalysisEntry[];
+}
+
+interface StoreSchema {
+  settings: Settings;
+  sessions: Session[];
+}
+
+const store = new Store<StoreSchema>({
+  defaults: {
+    settings: {
+      apiBase: "",
+      captureIntervalSecs: 30,
+      skillLevel: "intermediate",
+      focusAreas: [],
+      coachingStyle: "balanced",
+    },
+    sessions: [],
+  },
+});
 
 const API_BASE =
-  (store.get("apiBase") as string | undefined) ||
+  (store.get("settings.apiBase") as string | undefined) ||
   process.env.REPLAYIQ_API_BASE ||
   "https://fortnite-replay-analyzer.vercel.app";
 
@@ -33,20 +91,41 @@ type AppStatus =
   | "error";
 
 let currentStatus: AppStatus = "fortnite_not_running";
+let currentSession: Session | null = null;
+
+function newSession(): Session {
+  return {
+    id: Date.now().toString(),
+    startedAt: new Date().toISOString(),
+    analyses: [],
+  };
+}
+
+function saveSession(session: Session) {
+  const sessions = (store.get("sessions") as Session[]) || [];
+  const idx = sessions.findIndex((s) => s.id === session.id);
+  if (idx >= 0) {
+    sessions[idx] = session;
+  } else {
+    sessions.unshift(session);
+  }
+  // Keep only last 50 sessions
+  store.set("sessions", sessions.slice(0, 50));
+}
 
 // ── Window ────────────────────────────────────────────────────────────────────
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 400,
-    height: 700,
-    minWidth: 360,
-    minHeight: 400,
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     frame: false,
     transparent: false,
     resizable: true,
     alwaysOnTop: false,
     skipTaskbar: false,
-    backgroundColor: "#05050f",
+    backgroundColor: "#040813",
     icon: path.join(__dirname, "..", "assets", "icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -82,11 +161,6 @@ function createTray() {
       click: () => { overlayWindow?.show(); overlayWindow?.focus(); },
     },
     { type: "separator" },
-    {
-      label: "Open website",
-      click: () => shell.openExternal(API_BASE),
-    },
-    { type: "separator" },
     { label: "Quit ReplayIQ", click: () => app.quit() },
   ]);
 
@@ -95,13 +169,13 @@ function createTray() {
   tray.on("double-click", () => { overlayWindow?.show(); overlayWindow?.focus(); });
 }
 
-// ── Status broadcast ──────────────────────────────────────────────────────────
+// ── Status ────────────────────────────────────────────────────────────────────
 function setStatus(status: AppStatus, extra?: Record<string, unknown>) {
   currentStatus = status;
   overlayWindow?.webContents.send("status-change", { status, ...extra });
 }
 
-// ── Fortnite detection loop (every 4 seconds) ─────────────────────────────────
+// ── Detection loop ────────────────────────────────────────────────────────────
 async function startDetectionLoop() {
   if (detectionTimer) clearInterval(detectionTimer);
 
@@ -113,13 +187,17 @@ async function startDetectionLoop() {
 
     const fortniteRunning = sources.some(
       (s) =>
+        s.name === "Fortnite" ||
         s.name.toLowerCase().includes("fortnite") ||
         s.name.includes("FortniteClient")
     );
 
     if (!fortniteRunning) {
-      setStatus("fortnite_not_running");
-      stopCaptureLoop();
+      if (currentStatus !== "fortnite_not_running") {
+        endSession();
+        setStatus("fortnite_not_running");
+        stopCaptureLoop();
+      }
       return;
     }
 
@@ -134,23 +212,35 @@ async function startDetectionLoop() {
       return;
     }
 
-    const inReplay = detectReplayMode(frame);
+    const looksLikeReplay = detectReplayMode(frame);
 
-    if (inReplay && currentStatus !== "replay_detected" && currentStatus !== "analyzing") {
+    if (looksLikeReplay && currentStatus !== "replay_detected" && currentStatus !== "analyzing") {
+      if (!currentSession) {
+        currentSession = newSession();
+      }
       setStatus("replay_detected");
       startCaptureLoop();
-    } else if (!inReplay && (currentStatus === "replay_detected" || currentStatus === "analyzing")) {
+    } else if (!looksLikeReplay && (currentStatus === "replay_detected" || currentStatus === "analyzing")) {
       setStatus("fortnite_running");
       stopCaptureLoop();
     }
   }, 4000);
 }
 
-// ── Capture + analysis loop (every 30 seconds while in replay mode) ───────────
+function endSession() {
+  if (currentSession && currentSession.analyses.length > 0) {
+    currentSession.endedAt = new Date().toISOString();
+    saveSession(currentSession);
+  }
+  currentSession = null;
+}
+
+// ── Capture loop ──────────────────────────────────────────────────────────────
 function startCaptureLoop() {
   if (captureTimer) return;
 
-  const INTERVAL_SECS = (store.get("captureIntervalSecs") as number | undefined) ?? 30;
+  const settings = store.get("settings") as Settings;
+  const INTERVAL_SECS = settings.captureIntervalSecs ?? 30;
 
   captureTimer = setInterval(async () => {
     await runCapture();
@@ -170,19 +260,40 @@ async function runCapture() {
   const frame = await captureFortniteWindow("high");
   if (!frame) return;
 
-  if (!detectReplayMode(frame)) {
-    setStatus("fortnite_running");
-    stopCaptureLoop();
-    return;
-  }
-
   setStatus("analyzing");
+
+  const settings = store.get("settings") as Settings;
 
   try {
     const result = await analyzeFrame({
       imageBase64: frame.toJPEG(85).toString("base64"),
       apiBase: API_BASE,
+      skillLevel: settings.skillLevel,
+      focusAreas: settings.focusAreas,
     });
+
+    if (!result.is_replay) {
+      // Claude says this isn't a replay frame — go back to waiting
+      setStatus("fortnite_running");
+      stopCaptureLoop();
+      return;
+    }
+
+    // Store in current session
+    if (currentSession) {
+      const entry: AnalysisEntry = {
+        timestamp: (result.timestamp as string) || new Date().toISOString(),
+        observation: (result.observation as string) || "",
+        mistakes: (result.mistakes as AnalysisMistake[]) || [],
+        positives: (result.positives as AnalysisPositive[]) || [],
+        skill_scores: (result.skill_scores as Record<string, number | null>) || {},
+        game_state: (result.game_state as Record<string, unknown>) || {},
+        is_replay: true,
+      };
+      currentSession.analyses.push(entry);
+      if (currentSession.analyses.length % 3 === 0) saveSession(currentSession);
+      overlayWindow?.webContents.send("session-update", buildSessionStats());
+    }
 
     if (result.rateLimited) {
       overlayWindow?.webContents.send("coaching-result", {
@@ -201,25 +312,111 @@ async function runCapture() {
       message: err instanceof Error ? err.message : "Analysis failed",
     });
   } finally {
-    setStatus("replay_detected");
+    if (currentStatus === "analyzing") setStatus("replay_detected");
   }
+}
+
+function buildSessionStats() {
+  if (!currentSession) return null;
+  const analyses = currentSession.analyses;
+  if (analyses.length === 0) return { analyses: 0, mistakes: 0, positives: 0, skillAverages: {} };
+
+  let totalMistakes = 0;
+  let totalPositives = 0;
+  const skillSums: Record<string, number> = {};
+  const skillCounts: Record<string, number> = {};
+
+  for (const a of analyses) {
+    totalMistakes += a.mistakes.length;
+    totalPositives += a.positives.length;
+    for (const [k, v] of Object.entries(a.skill_scores || {})) {
+      if (v !== null && v !== undefined) {
+        skillSums[k] = (skillSums[k] || 0) + (v as number);
+        skillCounts[k] = (skillCounts[k] || 0) + 1;
+      }
+    }
+  }
+
+  const skillAverages: Record<string, number> = {};
+  for (const k of Object.keys(skillSums)) {
+    skillAverages[k] = Math.round((skillSums[k] / skillCounts[k]) * 10) / 10;
+  }
+
+  return {
+    analyses: analyses.length,
+    mistakes: totalMistakes,
+    positives: totalPositives,
+    skillAverages,
+    startedAt: currentSession.startedAt,
+  };
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
 ipcMain.handle("get-status", () => ({ status: currentStatus }));
 
-ipcMain.handle("open-website", (_event, path: string) => {
-  shell.openExternal(`${API_BASE}${path || ""}`);
+ipcMain.handle("get-settings", () => store.get("settings"));
+
+ipcMain.handle("save-settings", (_event, settings: Partial<Settings>) => {
+  const current = store.get("settings") as Settings;
+  store.set("settings", { ...current, ...settings });
+  return true;
+});
+
+ipcMain.handle("get-sessions", () => {
+  const sessions = (store.get("sessions") as Session[]) || [];
+  return sessions.slice(0, 20);
+});
+
+ipcMain.handle("get-current-session", () => ({
+  session: currentSession,
+  stats: buildSessionStats(),
+}));
+
+ipcMain.handle("force-analyze", async () => {
+  if (!currentSession) currentSession = newSession();
+  setStatus("replay_detected");
+  startCaptureLoop();
+  return true;
+});
+
+ipcMain.handle("chat", async (_event, { message, history }: { message: string; history: {role: string; content: string}[] }) => {
+  const analyses = currentSession?.analyses || [];
+  const recentAnalyses = analyses.slice(-5);
+
+  const sessionSummary = recentAnalyses.length === 0
+    ? "No replay analysis captured yet this session."
+    : recentAnalyses.map((a, i) => {
+        const mistakes = a.mistakes.map((m) => `- [${m.severity}] ${m.title}: ${m.description}`).join("\n");
+        const positives = a.positives.map((p) => `+ ${p.title}`).join("\n");
+        return `Frame ${i + 1} (${new Date(a.timestamp).toLocaleTimeString()}):\n${a.observation}\nMistakes:\n${mistakes || "None"}\nStrengths:\n${positives || "None"}`;
+      }).join("\n\n---\n\n");
+
+  try {
+    const reply = await chatWithCoach({
+      message,
+      sessionSummary,
+      history: history as { role: "user" | "assistant"; content: string }[],
+      apiBase: API_BASE,
+    });
+    return { reply };
+  } catch (err) {
+    return { reply: "Sorry, I couldn't connect to the coaching server. Check your internet connection." };
+  }
+});
+
+ipcMain.handle("open-website", (_event, p: string) => {
+  shell.openExternal(`${API_BASE}${p || ""}`);
 });
 
 ipcMain.handle("manual-capture", async () => {
-  if (currentStatus !== "replay_detected" && currentStatus !== "analyzing") {
-    return { error: "Not in replay mode" };
-  }
   await runCapture();
 });
 
 ipcMain.handle("window-minimize", () => overlayWindow?.minimize());
+ipcMain.handle("window-maximize", () => {
+  if (overlayWindow?.isMaximized()) overlayWindow.unmaximize();
+  else overlayWindow?.maximize();
+});
 ipcMain.handle("window-close", () => overlayWindow?.hide());
 ipcMain.handle("open-devtools", () =>
   overlayWindow?.webContents.openDevTools({ mode: "detach" })
@@ -242,10 +439,14 @@ if (!gotLock) {
   });
 
   app.on("window-all-closed", () => {
-    // Keep running in tray on Windows
+    // Keep running in tray
   });
 
   app.on("activate", () => {
     if (!overlayWindow) createOverlayWindow();
+  });
+
+  app.on("before-quit", () => {
+    endSession();
   });
 }
