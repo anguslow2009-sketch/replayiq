@@ -11,7 +11,7 @@ import {
 import * as path from "path";
 import Store from "electron-store";
 import { captureFortniteWindow, detectReplayMode } from "./capture";
-import { analyzeFrame } from "./api";
+import { analyzeFrame, desktopSignIn } from "./api";
 import { chatWithCoach } from "./chat";
 
 interface Settings {
@@ -20,6 +20,13 @@ interface Settings {
   skillLevel: string;
   focusAreas: string[];
   coachingStyle: string;
+}
+
+interface AuthState {
+  token: string;
+  isPro: boolean;
+  name: string;
+  email: string;
 }
 
 interface AnalysisMistake {
@@ -58,6 +65,7 @@ interface Session {
 interface StoreSchema {
   settings: Settings;
   sessions: Session[];
+  auth: AuthState | null;
 }
 
 const store = new Store<StoreSchema>({
@@ -70,6 +78,7 @@ const store = new Store<StoreSchema>({
       coachingStyle: "balanced",
     },
     sessions: [],
+    auth: null,
   },
 });
 
@@ -95,6 +104,10 @@ let currentSession: Session | null = null;
 let replayAnalysisCount = 0;
 const MAX_ANALYSES_PER_REPLAY = 10; // 10 × 30s = 5 minutes
 
+function getAuth(): AuthState | null {
+  return store.get("auth") as AuthState | null;
+}
+
 function newSession(): Session {
   return {
     id: Date.now().toString(),
@@ -111,7 +124,6 @@ function saveSession(session: Session) {
   } else {
     sessions.unshift(session);
   }
-  // Keep only last 50 sessions
   store.set("sessions", sessions.slice(0, 50));
 }
 
@@ -260,6 +272,16 @@ function stopCaptureLoop() {
 }
 
 async function runCapture() {
+  const auth = getAuth();
+  if (!auth?.token) {
+    overlayWindow?.webContents.send("coaching-result", {
+      type: "auth_required",
+      message: "Please sign in to use ReplayIQ coaching.",
+    });
+    stopCaptureLoop();
+    return;
+  }
+
   const frame = await captureFortniteWindow("high");
   if (!frame) return;
 
@@ -271,18 +293,36 @@ async function runCapture() {
     const result = await analyzeFrame({
       imageBase64: frame.toJPEG(85).toString("base64"),
       apiBase: API_BASE,
+      token: auth.token,
       skillLevel: settings.skillLevel,
       focusAreas: settings.focusAreas,
     });
 
+    if ((result as Record<string, unknown>).authRequired) {
+      store.set("auth", null);
+      overlayWindow?.webContents.send("coaching-result", {
+        type: "auth_required",
+        message: "Session expired. Please sign in again.",
+      });
+      stopCaptureLoop();
+      return;
+    }
+
+    if (result.upgradeRequired) {
+      overlayWindow?.webContents.send("coaching-result", {
+        type: "upgrade_required",
+        message: result.error || "Daily limit reached. Upgrade to Pro for unlimited coaching.",
+      });
+      stopCaptureLoop();
+      return;
+    }
+
     if (!result.is_replay) {
-      // Claude says this isn't a replay frame — go back to waiting
       setStatus("fortnite_running");
       stopCaptureLoop();
       return;
     }
 
-    // Store in current session
     if (currentSession) {
       const entry: AnalysisEntry = {
         timestamp: (result.timestamp as string) || new Date().toISOString(),
@@ -298,13 +338,20 @@ async function runCapture() {
       if (currentSession.analyses.length % 3 === 0) saveSession(currentSession);
       overlayWindow?.webContents.send("session-update", buildSessionStats());
 
-      // 5-minute threshold reached — stop and show summary
       if (replayAnalysisCount >= MAX_ANALYSES_PER_REPLAY) {
         stopCaptureLoop();
         endSession();
         setStatus("fortnite_running");
         overlayWindow?.webContents.send("session-complete", buildSessionStats());
         replayAnalysisCount = 0;
+
+        // Show paywall for free users
+        if (!auth.isPro) {
+          overlayWindow?.webContents.send("coaching-result", {
+            type: "upgrade_required",
+            message: "You've used your 5 free minutes of coaching. Upgrade to Pro for unlimited sessions.",
+          });
+        }
         return;
       }
     }
@@ -366,6 +413,28 @@ function buildSessionStats() {
 }
 
 // ── IPC handlers ──────────────────────────────────────────────────────────────
+ipcMain.handle("get-auth-state", () => {
+  const auth = getAuth();
+  return auth ? { isSignedIn: true, isPro: auth.isPro, name: auth.name, email: auth.email } : { isSignedIn: false };
+});
+
+ipcMain.handle("sign-in", async (_event, { email, password }: { email: string; password: string }) => {
+  try {
+    const result = await desktopSignIn(API_BASE, email, password);
+    const authState: AuthState = { token: result.token, isPro: result.isPro, name: result.name, email };
+    store.set("auth", authState);
+    return { ok: true, isPro: result.isPro, name: result.name };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Sign in failed" };
+  }
+});
+
+ipcMain.handle("sign-out", () => {
+  store.set("auth", null);
+  stopCaptureLoop();
+  return true;
+});
+
 ipcMain.handle("get-status", () => ({ status: currentStatus }));
 
 ipcMain.handle("get-settings", () => store.get("settings"));
@@ -414,7 +483,7 @@ ipcMain.handle("chat", async (_event, { message, history }: { message: string; h
       apiBase: API_BASE,
     });
     return { reply };
-  } catch (err) {
+  } catch {
     return { reply: "Sorry, I couldn't connect to the coaching server. Check your internet connection." };
   }
 });

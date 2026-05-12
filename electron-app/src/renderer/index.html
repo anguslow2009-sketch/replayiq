@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://fortnite-replay-analyzer.vercel.app" />
   <title>ReplayIQ</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -857,6 +857,184 @@
     #force-btn:hover { filter: brightness(1.15); }
     #force-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* ── Sign-in overlay ── */
+    #signin-overlay, #paywall-overlay {
+      position: fixed; inset: 0;
+      background: rgba(4,8,19,0.97);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      animation: fadeIn 0.3s;
+    }
+
+    #signin-overlay.hidden, #paywall-overlay.hidden { display: none; }
+
+    .auth-box {
+      width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 24px;
+      padding: 36px 32px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+
+    .auth-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .auth-logo-icon {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 0 32px var(--glow-blue);
+    }
+
+    .auth-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .auth-sub   { font-size: 12px; color: var(--muted); }
+
+    .auth-field { margin-bottom: 14px; }
+    .auth-field label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .auth-input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 13px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .auth-input:focus { border-color: var(--blue); }
+
+    .auth-error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 12px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .auth-error.show { display: block; }
+
+    .auth-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--blue2), var(--blue));
+      border: none;
+      border-radius: 11px;
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      margin-bottom: 10px;
+    }
+    .auth-btn:hover { filter: brightness(1.1); box-shadow: 0 6px 20px var(--glow-blue); }
+    .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .auth-toggle {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .auth-toggle a { color: var(--blue); cursor: pointer; text-decoration: none; }
+    .auth-toggle a:hover { color: #7ec8f0; }
+
+    .paywall-box {
+      width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 24px;
+      padding: 40px 36px;
+      text-align: center;
+    }
+
+    .paywall-icon { font-size: 48px; margin-bottom: 16px; }
+    .paywall-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+    .paywall-desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+
+    .paywall-features {
+      text-align: left;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .paywall-feature {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      padding: 6px 0;
+      color: #c4d8f0;
+    }
+
+    .paywall-check { color: var(--green); font-size: 14px; }
+
+    .paywall-btn {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #c46200, var(--orange));
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 15px;
+      font-weight: 800;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+      margin-bottom: 10px;
+    }
+    .paywall-btn:hover { filter: brightness(1.1); }
+
+    .paywall-dismiss {
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      margin-top: 4px;
+    }
+    .paywall-dismiss:hover { color: var(--text); }
+
+    /* ── User pill in titlebar ── */
+    #user-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-right: 8px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    #user-pill:hover { color: var(--text); border-color: var(--border2); }
+    #user-pill.visible { display: flex; }
+
     /* ── Typing indicator ── */
     .typing-indicator {
       display: flex;
@@ -879,6 +1057,55 @@
   </style>
 </head>
 <body>
+
+<!-- Sign-in overlay -->
+<div id="signin-overlay" class="hidden">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">⚡</div>
+      <div class="auth-title">Replay<span style="color:var(--blue)">IQ</span></div>
+      <div class="auth-sub" id="auth-subtitle">Sign in to start coaching</div>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-field">
+      <label>Email</label>
+      <input type="email" class="auth-input" id="auth-email" placeholder="you@example.com" />
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input type="password" class="auth-input" id="auth-password" placeholder="••••••••" />
+    </div>
+    <div class="auth-field" id="auth-name-field" style="display:none">
+      <label>Username (optional)</label>
+      <input type="text" class="auth-input" id="auth-name" placeholder="Your in-game name" />
+    </div>
+    <button class="auth-btn" id="auth-submit-btn" onclick="app.submitAuth()">Sign In</button>
+    <div class="auth-toggle">
+      <span id="auth-toggle-text">Don't have an account?</span>
+      <a onclick="app.toggleAuthMode()"> <span id="auth-toggle-link">Sign up free</span></a>
+    </div>
+    <div class="auth-toggle" style="margin-top:8px">
+      <a onclick="window.electronAPI.openWebsite('/signup')">Sign up on website instead</a>
+    </div>
+  </div>
+</div>
+
+<!-- Paywall overlay -->
+<div id="paywall-overlay" class="hidden">
+  <div class="paywall-box">
+    <div class="paywall-icon">🏆</div>
+    <div class="paywall-title">5 Free Minutes Used</div>
+    <div class="paywall-desc">You've reached your daily free coaching limit. Upgrade to Pro for unlimited sessions, deeper analysis, and priority processing.</div>
+    <div class="paywall-features">
+      <div class="paywall-feature"><span class="paywall-check">✓</span> Unlimited replay coaching sessions</div>
+      <div class="paywall-feature"><span class="paywall-check">✓</span> No daily analysis limits</div>
+      <div class="paywall-feature"><span class="paywall-check">✓</span> Priority AI processing</div>
+      <div class="paywall-feature"><span class="paywall-check">✓</span> Detailed skill progression tracking</div>
+    </div>
+    <button class="paywall-btn" onclick="window.electronAPI.openWebsite('/pricing')">⚡ Upgrade to Pro</button>
+    <button class="paywall-dismiss" onclick="app.dismissPaywall()">Continue with free (resets tomorrow)</button>
+  </div>
+</div>
 
 <!-- Loading screen -->
 <div id="loading">
@@ -910,6 +1137,11 @@
       <button class="nav-tab" data-page="settings" onclick="app.navigate('settings')">
         <span class="tab-icon">⚙</span> Settings
       </button>
+    </div>
+
+    <div id="user-pill" onclick="app.showSignOutMenu()">
+      <span>👤</span>
+      <span id="user-pill-name">Account</span>
     </div>
 
     <div id="status-pill">

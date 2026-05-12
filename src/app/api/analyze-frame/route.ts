@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const FREE_DAILY_LIMIT = 10;
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -10,15 +13,33 @@ function getClient(): Anthropic {
   return _client;
 }
 
-const lastCallByIp = new Map<string, number>();
-const COOLDOWN_MS = 30_000;
+async function resolveUser(req: NextRequest) {
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return null;
+  return db.user.findUnique({
+    where: { desktopToken: token },
+    select: { id: true, isPro: true, dailyAnalyses: true, lastAnalysisDate: true },
+  });
+}
 
-function checkIpRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const last = lastCallByIp.get(ip) ?? 0;
-  if (now - last < COOLDOWN_MS) return false;
-  lastCallByIp.set(ip, now);
-  return true;
+async function checkAndIncrementQuota(userId: string, isPro: boolean, dailyAnalyses: number, lastAnalysisDate: string | null): Promise<{ allowed: boolean; remaining: number }> {
+  if (isPro) return { allowed: true, remaining: 999 };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const count = lastAnalysisDate === today ? dailyAnalyses : 0;
+
+  if (count >= FREE_DAILY_LIMIT) return { allowed: false, remaining: 0 };
+
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      dailyAnalyses: lastAnalysisDate === today ? count + 1 : 1,
+      lastAnalysisDate: today,
+    },
+  });
+
+  return { allowed: true, remaining: FREE_DAILY_LIMIT - count - 1 };
 }
 
 const VISION_SYSTEM_PROMPT = `You are an elite Fortnite competitive coach with 10,000+ hours of coaching experience. You are analyzing a screenshot from the Fortnite replay viewer.
@@ -88,15 +109,23 @@ If not a replay:
 {"is_replay": false, "observation": "", "mistakes": [], "positives": [], "skill_scores": {}, "game_state": {}, "timestamp": "<ISO>"}`;
 
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    req.headers.get("x-real-ip") ??
-    "unknown";
-
-  if (!checkIpRateLimit(ip)) {
+  const user = await resolveUser(req);
+  if (!user) {
     return NextResponse.json(
-      { error: "Too soon", message: "Wait 30 seconds between analyses." },
-      { status: 429 }
+      { error: "Sign in required", message: "Please sign in to use ReplayIQ." },
+      { status: 401 }
+    );
+  }
+
+  const quota = await checkAndIncrementQuota(user.id, user.isPro, user.dailyAnalyses, user.lastAnalysisDate);
+  if (!quota.allowed) {
+    return NextResponse.json(
+      {
+        error: "Daily limit reached",
+        message: `Free accounts get ${FREE_DAILY_LIMIT} analyses per day. Upgrade to Pro for unlimited coaching.`,
+        upgradeRequired: true,
+      },
+      { status: 402 }
     );
   }
 
@@ -145,7 +174,6 @@ export async function POST(req: NextRequest) {
 
     let result: Record<string, unknown>;
     try {
-      // Strip any markdown code fences if present
       const cleaned = rawText.replace(/^```json\s*/m, "").replace(/```\s*$/m, "").trim();
       result = JSON.parse(cleaned);
     } catch {
@@ -161,6 +189,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (!result.timestamp) result.timestamp = new Date().toISOString();
+    result.isPro = user.isPro;
+    result.analysesRemaining = quota.remaining;
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(

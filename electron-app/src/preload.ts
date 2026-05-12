@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  // Auth
+  signIn: (email: string, password: string) => ipcRenderer.invoke("sign-in", { email, password }),
+  signOut: () => ipcRenderer.invoke("sign-out"),
+  getAuthState: () => ipcRenderer.invoke("get-auth-state"),
+
   // Status & session
   getStatus: () => ipcRenderer.invoke("get-status"),
   getCurrentSession: () => ipcRenderer.invoke("get-current-session"),

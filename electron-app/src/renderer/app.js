@@ -16,22 +16,85 @@ const app = {
   sessionTimer: null,
   sessionStart: null,
   settings: {},
+  authMode: "signin", // "signin" | "signup"
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   async init() {
-    // Load settings first
+    // Check auth first
+    const authState = await window.electronAPI.getAuthState();
+
+    // Load settings
     this.settings = await window.electronAPI.getSettings();
     this.applySettingsToUI();
 
-    // Get initial status
+    // Setup UI event listeners
+    document.getElementById("setting-interval").addEventListener("input", (e) => {
+      document.getElementById("interval-display").textContent = e.target.value + "s";
+    });
+
+    document.querySelectorAll(".checkbox-pill").forEach((pill) => {
+      const cb = pill.querySelector("input");
+      cb.addEventListener("change", () => {
+        pill.classList.toggle("checked", cb.checked);
+      });
+    });
+
+    document.getElementById("chat-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        this.sendChat();
+      }
+    });
+
+    // Allow Enter key on sign-in fields
+    ["auth-email", "auth-password", "auth-name"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") this.submitAuth(); });
+    });
+
+    // Hide loading
+    setTimeout(() => {
+      document.getElementById("loading").classList.add("hidden");
+
+      if (!authState.isSignedIn) {
+        document.getElementById("signin-overlay").classList.remove("hidden");
+      } else {
+        this.onSignedIn(authState);
+      }
+    }, 600);
+  },
+
+  onSignedIn(authState) {
+    document.getElementById("app").style.display = "flex";
+    document.getElementById("signin-overlay").classList.add("hidden");
+
+    // Show user pill
+    const pill = document.getElementById("user-pill");
+    pill.classList.add("visible");
+    document.getElementById("user-pill-name").textContent = authState.name || authState.email || "Account";
+
+    // Pro badge
+    if (authState.isPro) {
+      pill.querySelector("span:first-child").textContent = "⭐";
+    }
+
+    // Update greeting
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const name = (authState.name || "").split(" ")[0];
+    document.getElementById("dash-greeting").textContent = greeting + (name ? ", " + name : "") + " — let's get better";
+
+    // Start the actual app
+    this.startApp();
+  },
+
+  async startApp() {
     const { status } = await window.electronAPI.getStatus();
     this.applyStatus(status);
 
-    // Load history and sessions
     await this.refreshHistory();
     await this.refreshDashboard();
 
-    // Listen for events
     window.electronAPI.onStatusChange((payload) => {
       this.applyStatus(payload.status);
     });
@@ -54,40 +117,103 @@ const app = {
       this.navigate("live");
     });
 
-    // Interval to update session timer
     this.sessionTimer = setInterval(() => this.tickSessionTimer(), 1000);
+  },
 
-    // Setup settings interval slider
-    document.getElementById("setting-interval").addEventListener("input", (e) => {
-      document.getElementById("interval-display").textContent = e.target.value + "s";
-    });
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  toggleAuthMode() {
+    this.authMode = this.authMode === "signin" ? "signup" : "signin";
+    const isSignup = this.authMode === "signup";
+    document.getElementById("auth-subtitle").textContent = isSignup ? "Create your free account" : "Sign in to start coaching";
+    document.getElementById("auth-submit-btn").textContent = isSignup ? "Create Account" : "Sign In";
+    document.getElementById("auth-toggle-text").textContent = isSignup ? "Already have an account?" : "Don't have an account?";
+    document.getElementById("auth-toggle-link").textContent = isSignup ? "Sign in" : "Sign up free";
+    document.getElementById("auth-name-field").style.display = isSignup ? "block" : "none";
+    document.getElementById("auth-error").classList.remove("show");
+  },
 
-    // Setup focus area checkboxes
-    document.querySelectorAll(".checkbox-pill").forEach((pill) => {
-      const cb = pill.querySelector("input");
-      cb.addEventListener("change", () => {
-        pill.classList.toggle("checked", cb.checked);
-      });
-    });
+  async submitAuth() {
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value;
+    const name = document.getElementById("auth-name").value.trim();
 
-    // Enter key in chat
-    document.getElementById("chat-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        this.sendChat();
+    const errEl = document.getElementById("auth-error");
+    errEl.classList.remove("show");
+
+    if (!email || !password) {
+      errEl.textContent = "Please enter your email and password.";
+      errEl.classList.add("show");
+      return;
+    }
+
+    if (this.authMode === "signup" && password.length < 8) {
+      errEl.textContent = "Password must be at least 8 characters.";
+      errEl.classList.add("show");
+      return;
+    }
+
+    const btn = document.getElementById("auth-submit-btn");
+    btn.disabled = true;
+    btn.textContent = this.authMode === "signup" ? "Creating account…" : "Signing in…";
+
+    try {
+      if (this.authMode === "signup") {
+        // Register on website first
+        const apiBase = "https://fortnite-replay-analyzer.vercel.app";
+        const res = await fetch(`${apiBase}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || "Registration failed.";
+          errEl.classList.add("show");
+          btn.disabled = false;
+          btn.textContent = "Create Account";
+          return;
+        }
       }
-    });
 
-    // Hide loading, show app
-    setTimeout(() => {
-      document.getElementById("loading").classList.add("hidden");
-      document.getElementById("app").style.display = "flex";
-    }, 600);
+      const result = await window.electronAPI.signIn(email, password);
+      if (!result.ok) {
+        errEl.textContent = result.error || "Invalid email or password.";
+        errEl.classList.add("show");
+        btn.disabled = false;
+        btn.textContent = this.authMode === "signup" ? "Create Account" : "Sign In";
+        return;
+      }
 
-    // Update greeting
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    document.getElementById("dash-greeting").textContent = greeting + ", let's get better";
+      this.onSignedIn({ isSignedIn: true, isPro: result.isPro, name: result.name, email });
+    } catch {
+      errEl.textContent = "Could not connect to server. Check your internet.";
+      errEl.classList.add("show");
+      btn.disabled = false;
+      btn.textContent = this.authMode === "signup" ? "Create Account" : "Sign In";
+    }
+  },
+
+  showSignOutMenu() {
+    if (confirm("Sign out of ReplayIQ?")) {
+      window.electronAPI.signOut().then(() => {
+        document.getElementById("user-pill").classList.remove("visible");
+        document.getElementById("app").style.display = "none";
+        document.getElementById("signin-overlay").classList.remove("hidden");
+        document.getElementById("auth-error").classList.remove("show");
+        document.getElementById("auth-email").value = "";
+        document.getElementById("auth-password").value = "";
+        this.authMode = "signin";
+      });
+    }
+  },
+
+  // ── Paywall ───────────────────────────────────────────────────────────────
+  showPaywall() {
+    document.getElementById("paywall-overlay").classList.remove("hidden");
+  },
+
+  dismissPaywall() {
+    document.getElementById("paywall-overlay").classList.add("hidden");
   },
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -198,6 +324,16 @@ const app = {
 
   // ── Coaching results ──────────────────────────────────────────────────────
   handleCoachingResult(result) {
+    if (result.type === "auth_required") {
+      document.getElementById("app").style.display = "none";
+      document.getElementById("signin-overlay").classList.remove("hidden");
+      return;
+    }
+    if (result.type === "upgrade_required") {
+      this.showPaywall();
+      this.navigate("live");
+      return;
+    }
     if (result.type === "rate_limited") {
       this.addLiveCard("rate_limited", result.message);
       return;

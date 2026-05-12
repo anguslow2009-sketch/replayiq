@@ -7,13 +7,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  desktopToken  String?   @unique  // long-lived token for the desktop app
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  image            String?
+  emailVerified    DateTime?
+  createdAt        DateTime  @default(now())
+  desktopToken     String?   @unique
+  hashedPassword   String?
+  isPro            Boolean   @default(false)
+  dailyAnalyses    Int       @default(0)
+  lastAnalysisDate String?
 
   accounts     Account[]
   sessions     Session[]

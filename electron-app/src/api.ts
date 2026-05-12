@@ -4,6 +4,7 @@ import * as http from "http";
 interface AnalyzeFrameOptions {
   imageBase64: string;
   apiBase: string;
+  token: string;
   skillLevel?: string;
   focusAreas?: string[];
 }
@@ -24,7 +25,10 @@ interface AnalyzeFrameResult {
   skill_scores: Record<string, number | null>;
   game_state: Record<string, unknown>;
   timestamp: string;
+  isPro?: boolean;
+  analysesRemaining?: number;
   rateLimited?: boolean;
+  upgradeRequired?: boolean;
   error?: string;
 }
 
@@ -48,6 +52,7 @@ export async function analyzeFrame(opts: AnalyzeFrameOptions): Promise<AnalyzeFr
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
+          "Authorization": `Bearer ${opts.token}`,
         },
       },
       (res) => {
@@ -56,7 +61,11 @@ export async function analyzeFrame(opts: AnalyzeFrameOptions): Promise<AnalyzeFr
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
-            if (res.statusCode === 429) {
+            if (res.statusCode === 401) {
+              resolve({ ...parsed, authRequired: true, is_replay: false, observation: "", mistakes: [], positives: [], skill_scores: {}, game_state: {}, timestamp: new Date().toISOString() });
+            } else if (res.statusCode === 402) {
+              resolve({ ...parsed, upgradeRequired: true, is_replay: false, observation: "", mistakes: [], positives: [], skill_scores: {}, game_state: {}, timestamp: new Date().toISOString() });
+            } else if (res.statusCode === 429) {
               resolve({ ...parsed, rateLimited: true, is_replay: false, observation: "", mistakes: [], positives: [], skill_scores: {}, game_state: {}, timestamp: new Date().toISOString() });
             } else if (res.statusCode !== 200) {
               reject(new Error(parsed.error || `HTTP ${res.statusCode}`));
@@ -71,6 +80,47 @@ export async function analyzeFrame(opts: AnalyzeFrameOptions): Promise<AnalyzeFr
     );
     req.on("error", reject);
     req.setTimeout(60000, () => { req.destroy(); reject(new Error("Request timed out")); });
+    req.write(body);
+    req.end();
+  });
+}
+
+export async function desktopSignIn(apiBase: string, email: string, password: string): Promise<{ token: string; isPro: boolean; name: string }> {
+  const url = new URL("/api/auth/desktop-signin", apiBase);
+  const body = JSON.stringify({ email, password });
+
+  return new Promise((resolve, reject) => {
+    const lib = url.protocol === "https:" ? https : http;
+    const req = lib.request(
+      {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === "https:" ? 443 : 80),
+        path: url.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (res.statusCode === 200) {
+              resolve(parsed);
+            } else {
+              reject(new Error(parsed.error || "Sign in failed"));
+            }
+          } catch {
+            reject(new Error("Invalid response"));
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error("Request timed out")); });
     req.write(body);
     req.end();
   });
